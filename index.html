@@ -33,9 +33,9 @@ button:disabled{opacity:.55;cursor:wait}
 .legend-item{display:flex;align-items:center;gap:5px}
 .legend-dot{width:9px;height:9px;border-radius:2px;display:inline-block}
 #asmcChart{position:relative;flex:1;min-height:0;width:100%;overflow:hidden;border-radius:6px;background:#0b0e14}
-#chartMessage{position:absolute;left:10px;top:10px;z-index:5;background:#181a20dd;padding:7px 9px;border-radius:5px;color:#aaa;font-size:11px;pointer-events:none}
+#chartMessage{position:absolute;left:10px;top:10px;z-index:5;background:#181a20dd;padding:7px 9px;border-radius:5px;color:#aaa;font-size:11px;pointer-events:none;max-width:90%}
 .zone-overlay{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:3}
-.zone-box{position:absolute;border:1px solid;min-width:2px}
+.zone-box{position:absolute;border:1px solid;min-width:2px;pointer-events:none}
 .zone-label{position:absolute;left:3px;top:2px;font-size:10px;font-weight:bold;white-space:nowrap;text-shadow:0 1px 2px #000}
 .signal-box{display:flex;flex-direction:column;gap:14px}
 .section-title{color:#f0b90b;margin:0}
@@ -51,16 +51,8 @@ button:disabled{opacity:.55;cursor:wait}
 .ai-card{background:linear-gradient(135deg,#1e1b4b,#31103f);border:1px solid #a855f7;border-radius:8px;padding:15px}
 .zone-list{font-size:12px;line-height:1.8;color:#ddd;white-space:pre-line;overflow-wrap:anywhere}
 .notice{background:#2b2412;border:1px solid #8a6b16;color:#f5d879;padding:10px;border-radius:7px;font-size:12px;line-height:1.6}
-@media(max-width:900px){
- .main-grid{grid-template-columns:1fr}
- .chart-box{height:440px}
-}
-@media(max-width:480px){
- .dashboard-container{padding:8px}
- .chart-box{height:380px;padding:8px}
- .signal-box{padding:10px}
- .value{font-size:22px}
-}
+@media(max-width:900px){.main-grid{grid-template-columns:1fr}.chart-box{height:440px}}
+@media(max-width:480px){.dashboard-container{padding:8px}.chart-box{height:380px;padding:8px}.signal-box{padding:10px}.value{font-size:22px}}
 </style>
 </head>
 
@@ -101,6 +93,7 @@ button:disabled{opacity:.55;cursor:wait}
           <span class="legend-item"><i class="legend-dot" style="background:#3b82f6"></i>Order Block</span>
         </div>
       </div>
+
       <div id="asmcChart">
         <div id="chartMessage">Unlock dashboard, then press Scan Market.</div>
       </div>
@@ -125,12 +118,8 @@ button:disabled{opacity:.55;cursor:wait}
         <hr style="border-color:#333;margin:12px 0">
 
         <div class="muted">SIGNAL</div>
-        <div id="signalType" style="font-size:20px;font-weight:bold;color:#f5d879;margin:6px 0">
-          NOT SCANNED
-        </div>
-        <div id="setupType" style="color:#ccc;font-size:12px;line-height:1.5">
-          Press Scan Market to analyze current candles.
-        </div>
+        <div id="signalType" style="font-size:20px;font-weight:bold;color:#f5d879;margin:6px 0">NOT SCANNED</div>
+        <div id="setupType" style="color:#ccc;font-size:12px;line-height:1.5">Press Scan Market to analyze current candles.</div>
 
         <hr style="border-color:#333;margin:12px 0">
 
@@ -141,21 +130,16 @@ button:disabled{opacity:.55;cursor:wait}
         <div class="metric"><span>Last candle</span><b id="candleTime">—</b></div>
       </div>
 
-      <button class="scan-btn" id="scanBtn" onclick="scanMarket()">
-        🔎 Scan Market
-      </button>
+      <button class="scan-btn" id="scanBtn" onclick="scanMarket()">🔎 Scan Market</button>
 
       <div class="ai-card">
         <h4 style="margin:0;color:#c084fc">🤖 SMC Analysis Engine</h4>
-        <p style="font-size:13px">
-          Status:
-          <b id="aiStatus" style="color:#f5d879">READY TO SCAN</b>
-        </p>
+        <p style="font-size:13px">Status: <b id="aiStatus" style="color:#f5d879">READY TO SCAN</b></p>
         <div id="analysisSummary" class="zone-list">Select a timeframe and press Scan Market.</div>
       </div>
 
       <div class="notice">
-        ⚠️ Rule-based technical analysis only; this is not guaranteed to predict market direction or an independent AI confirmation. Verify the quote with your Exness broker before trading.
+        ⚠️ Rule-based technical analysis only. Signals are not guaranteed and are not independent AI confirmation. Verify quotes, spread and execution with Exness before trading.
       </div>
     </div>
   </div>
@@ -197,12 +181,8 @@ function showStatus(msg, isError = false) {
   const statusMsg = document.getElementById("statusMsg");
   statusMsg.style.display = "block";
   statusMsg.style.color = isError ? "#f6465d" : "#0ecb81";
-  statusMsg.style.background = isError
-    ? "rgba(246,70,93,.1)"
-    : "rgba(14,203,129,.1)";
-  statusMsg.style.border = isError
-    ? "1px solid #f6465d"
-    : "1px solid #0ecb81";
+  statusMsg.style.background = isError ? "rgba(246,70,93,.1)" : "rgba(14,203,129,.1)";
+  statusMsg.style.border = isError ? "1px solid #f6465d" : "1px solid #0ecb81";
   statusMsg.innerText = msg;
 }
 
@@ -265,7 +245,6 @@ async function verifyAndLogin() {
       document.getElementById("expiryTimer").innerText =
         `⏳ License: ${diffDays} Days Left`;
 
-      /* Dashboard chart starts after successful license validation */
       startASMCChart();
       setFeedStatus();
     }, 1000);
@@ -279,13 +258,17 @@ async function verifyAndLogin() {
 
 /* API CONFIG */
 const SCAN_API_BASE = "https://ak-gold-bot.vercel.app";
+
 let scanBusy = false;
 let lastAnalysis = null;
 let asmcChart = null;
 let candleSeries = null;
 let zoneOverlay = null;
 let refreshTimer = null;
-let chartReady = false;
+let resizeObserver = null;
+let chartHasData = false;
+let lastSuccessfulCandles = [];
+let activeRequestId = 0;
 
 function setFeedStatus() {
   document.getElementById("aiStatus").innerText = "READY · SERVER API";
@@ -296,16 +279,13 @@ function setFeedStatus() {
 
 function formatPrice(value) {
   if (value === null || value === undefined || value === "" ||
-      !Number.isFinite(Number(value))) {
-    return "—";
-  }
+      !Number.isFinite(Number(value))) return "—";
+
   return Number(value).toFixed(2);
 }
 
 function formatZone(zone) {
-  if (!zone || zone.low == null || zone.high == null) {
-    return "No zone identified";
-  }
+  if (!zone || zone.low == null || zone.high == null) return "No zone identified";
   return `${zone.type || "Zone"}: ${formatPrice(zone.low)} – ${formatPrice(zone.high)}`;
 }
 
@@ -326,97 +306,83 @@ function setSignalState(signal, description) {
     description || "No confirmed setup. Wait for clearer conditions.";
 }
 
-/* CHART SETUP */
+/* CHART SETUP: initialize once; preserve user zoom during refreshes */
 function startASMCChart() {
   const container = document.getElementById("asmcChart");
+
   if (!container || typeof LightweightCharts === "undefined") {
-    document.getElementById("chartMessage").innerText =
-      "Chart library unavailable. Check your internet connection.";
+    setChartMessage("Chart library unavailable. Check your internet connection.");
     return;
   }
 
-  if (asmcChart) {
-    asmcChart.remove();
-    asmcChart = null;
-    candleSeries = null;
+  if (!asmcChart) {
+    container.innerHTML = "";
+
+    const message = document.createElement("div");
+    message.id = "chartMessage";
+    message.textContent = "Loading market candles...";
+    container.appendChild(message);
+
+    zoneOverlay = document.createElement("div");
+    zoneOverlay.className = "zone-overlay";
+    zoneOverlay.id = "zoneOverlay";
+    container.appendChild(zoneOverlay);
+
+    asmcChart = LightweightCharts.createChart(container, {
+      width: container.clientWidth || 800,
+      height: container.clientHeight || 420,
+      layout: {
+        background: { type: "solid", color: "#0b0e14" },
+        textColor: "#d1d4dc",
+        fontSize: 11
+      },
+      grid: {
+        vertLines: { color: "#1d232d" },
+        horzLines: { color: "#1d232d" }
+      },
+      rightPriceScale: {
+        borderColor: "#343a46",
+        scaleMargins: { top: 0.08, bottom: 0.08 }
+      },
+      timeScale: {
+        borderColor: "#343a46",
+        timeVisible: true,
+        secondsVisible: false,
+        rightOffset: 5
+      },
+      crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+      localization: { priceFormatter: price => Number(price).toFixed(2) },
+      handleScroll: true,
+      handleScale: true
+    });
+
+    candleSeries = asmcChart.addCandlestickSeries({
+      upColor: "#0ecb81",
+      downColor: "#f6465d",
+      borderUpColor: "#0ecb81",
+      borderDownColor: "#f6465d",
+      wickUpColor: "#0ecb81",
+      wickDownColor: "#f6465d",
+      priceLineVisible: true,
+      lastValueVisible: true
+    });
+
+    asmcChart.timeScale().subscribeVisibleLogicalRangeChange(drawZones);
+
+    if (window.ResizeObserver) {
+      resizeObserver = new ResizeObserver(() => {
+        if (!asmcChart) return;
+        const w = container.clientWidth;
+        const h = container.clientHeight;
+        if (w > 0 && h > 0) asmcChart.applyOptions({ width: w, height: h });
+        drawZones();
+      });
+      resizeObserver.observe(container);
+    } else {
+      window.addEventListener("resize", resizeChart);
+    }
   }
 
-  container.innerHTML = '<div id="chartMessage">Loading market candles...</div>';
-
-  zoneOverlay = document.createElement("div");
-  zoneOverlay.className = "zone-overlay";
-  container.appendChild(zoneOverlay);
-
-  asmcChart = LightweightCharts.createChart(container, {
-    width: container.clientWidth,
-    height: container.clientHeight,
-    layout: {
-      background: { type: "solid", color: "#0b0e14" },
-      textColor: "#d1d4dc",
-      fontSize: 11
-    },
-    grid: {
-      vertLines: { color: "#1d232d" },
-      horzLines: { color: "#1d232d" }
-    },
-    rightPriceScale: {
-      borderColor: "#343a46",
-      scaleMargins: { top: 0.08, bottom: 0.08 }
-    },
-    timeScale: {
-      borderColor: "#343a46",
-      timeVisible: true,
-      secondsVisible: false,
-      rightOffset: 5
-    },
-    crosshair: {
-      mode: LightweightCharts.CrosshairMode.Normal
-    },
-    localization: {
-      priceFormatter: price => Number(price).toFixed(2)
-    },
-    handleScroll: true,
-    handleScale: true
-  });
-
-  candleSeries = asmcChart.addCandlestickSeries({
-    upColor: "#0ecb81",
-    downColor: "#f6465d",
-    borderUpColor: "#0ecb81",
-    borderDownColor: "#f6465d",
-    wickUpColor: "#0ecb81",
-    wickDownColor: "#f6465d",
-    priceLineVisible: true,
-    lastValueVisible: true
-  });
-
-  asmcChart.timeScale().subscribeVisibleLogicalRangeChange(() => drawZones());
-  asmcChart.subscribeCrosshairMove(() => drawZones());
-
-  if (window.ResizeObserver) {
-    const resizeObserver = new ResizeObserver(() => {
-      if (!asmcChart) return;
-      asmcChart.applyOptions({
-        width: container.clientWidth,
-        height: container.clientHeight
-      });
-      drawZones();
-    });
-    resizeObserver.observe(container);
-  } else {
-    window.addEventListener("resize", () => {
-      if (!asmcChart) return;
-      asmcChart.applyOptions({
-        width: container.clientWidth,
-        height: container.clientHeight
-      });
-      drawZones();
-    });
-  }
-
-  chartReady = true;
-
-  /* Initial scan, followed by periodic refresh */
   scanMarket();
 
   if (refreshTimer) clearInterval(refreshTimer);
@@ -427,11 +393,31 @@ function startASMCChart() {
   }, 60000);
 }
 
+function resizeChart() {
+  const container = document.getElementById("asmcChart");
+  if (!asmcChart || !container) return;
+
+  if (container.clientWidth > 0 && container.clientHeight > 0) {
+    asmcChart.applyOptions({
+      width: container.clientWidth,
+      height: container.clientHeight
+    });
+  }
+  drawZones();
+}
+
+function setChartMessage(message, visible = true) {
+  const el = document.getElementById("chartMessage");
+  if (!el) return;
+  el.textContent = message;
+  el.style.display = visible ? "block" : "none";
+}
+
 /* Normalize API candle format */
 function normalizeCandles(candles) {
   if (!Array.isArray(candles)) return [];
 
-  return candles.map(c => {
+  const normalized = candles.map(c => {
     let time = c.time;
 
     if (typeof time === "string") {
@@ -453,87 +439,83 @@ function normalizeCandles(candles) {
     Number.isFinite(c.open) &&
     Number.isFinite(c.high) &&
     Number.isFinite(c.low) &&
-    Number.isFinite(c.close)
-  ).sort((a, b) => a.time - b.time)
-   .filter((c, i, arr) => i === 0 || c.time !== arr[i - 1].time);
+    Number.isFinite(c.close) &&
+    c.high >= c.low
+  ).sort((a, b) => a.time - b.time);
+
+  return normalized.filter((c, i, arr) => i === 0 || c.time !== arr[i - 1].time);
 }
 
-/* Normalize zone shapes from the API */
+/* Normalize FVG and Order Block data */
 function normalizeZones(data) {
   const zones = [];
 
+  function addZone(z, fallbackType) {
+    if (!z) return;
+
+    const low = Number(z.low);
+    const high = Number(z.high);
+
+    if (!Number.isFinite(low) || !Number.isFinite(high) || high <= low) return;
+
+    const type = String(z.type || z.kind || z.name || fallbackType || "FVG");
+    let direction = String(z.direction || z.bias || "").toUpperCase();
+
+    if (!direction.includes("BULL") && !direction.includes("BEAR")) {
+      if (type.toUpperCase().includes("BEAR")) direction = "BEARISH";
+      else if (type.toUpperCase().includes("BULL")) direction = "BULLISH";
+    }
+
+    zones.push({
+      type,
+      low: Math.min(low, high),
+      high: Math.max(low, high),
+      from: Number(z.from),
+      to: Number(z.to),
+      direction
+    });
+  }
+
   if (Array.isArray(data.zones)) {
-    data.zones.forEach(z => {
-      const low = Number(z.low);
-      const high = Number(z.high);
-
-      if (Number.isFinite(low) && Number.isFinite(high)) {
-        zones.push({
-          type: String(z.type || z.name || "FVG").toUpperCase(),
-          low: Math.min(low, high),
-          high: Math.max(low, high),
-          from: Number(z.from),
-          to: Number(z.to),
-          direction: String(z.direction || z.bias || "").toUpperCase()
-        });
-      }
-    });
+    data.zones.forEach(z => addZone(z, "FVG"));
   }
 
-  if (data.fvg && data.fvg.low != null && data.fvg.high != null) {
-    zones.push({
-      type: "FVG",
-      low: Math.min(Number(data.fvg.low), Number(data.fvg.high)),
-      high: Math.max(Number(data.fvg.low), Number(data.fvg.high)),
-      from: Number(data.fvg.from),
-      to: Number(data.fvg.to),
-      direction: String(data.fvg.direction || data.fvg.bias || data.fvg.type || "").toUpperCase()
-    });
-  }
-
-  if (data.orderBlock &&
-      data.orderBlock.low != null &&
-      data.orderBlock.high != null) {
-    zones.push({
-      type: "ORDER BLOCK",
-      low: Math.min(Number(data.orderBlock.low), Number(data.orderBlock.high)),
-      high: Math.max(Number(data.orderBlock.low), Number(data.orderBlock.high)),
-      from: Number(data.orderBlock.from),
-      to: Number(data.orderBlock.to),
-      direction: String(data.orderBlock.direction || data.orderBlock.bias || data.orderBlock.type || "").toUpperCase()
-    });
-  }
+  addZone(data.fvg, "FVG");
+  addZone(data.orderBlock, "ORDER BLOCK");
 
   const seen = new Set();
+
   return zones.filter(z => {
-    if (!Number.isFinite(z.low) || !Number.isFinite(z.high)) return false;
-    const key = `${z.type}:${z.low}:${z.high}:${z.direction}`;
+    const key = [
+      z.type.toUpperCase(),
+      z.low,
+      z.high,
+      z.direction
+    ].join(":");
+
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
   });
 }
 
-/* Draw price/time-aligned FVG and OB rectangles */
+/* Draw FVG / OB zones aligned to the chart's time and price scales */
 function drawZones() {
   if (!asmcChart || !candleSeries || !zoneOverlay || !lastAnalysis) return;
 
-  zoneOverlay.innerHTML = "";
+  zoneOverlay.replaceChildren();
 
-  const candles = normalizeCandles(lastAnalysis.candles || []);
+  const candles = lastSuccessfulCandles;
   if (!candles.length) return;
 
   const timeScale = asmcChart.timeScale();
+  const zones = normalizeZones(lastAnalysis);
   const firstTime = candles[0].time;
   const lastTime = candles[candles.length - 1].time;
-  const zones = normalizeZones(lastAnalysis);
 
   zones.forEach(zone => {
-    let leftTime = Number.isFinite(zone.from) && zone.from > 0
-      ? zone.from : firstTime;
-
-    let rightTime = Number.isFinite(zone.to) && zone.to > 0
-      ? zone.to : lastTime;
+    let leftTime = Number.isFinite(zone.from) && zone.from > 0 ? zone.from : firstTime;
+    let rightTime = Number.isFinite(zone.to) && zone.to > 0 ? zone.to : lastTime;
 
     leftTime = Math.max(firstTime, Math.min(lastTime, leftTime));
     rightTime = Math.max(firstTime, Math.min(lastTime, rightTime));
@@ -545,10 +527,12 @@ function drawZones() {
 
     if (x1 == null || x2 == null || y1 == null || y2 == null) return;
 
-    const isOB = zone.type.includes("ORDER") || zone.type.includes("OB");
+    const type = zone.type.toUpperCase();
+    const isOB = type.includes("ORDER") || type.includes("OB");
     const isBear = zone.direction.includes("BEAR") ||
       zone.direction.includes("SELL") ||
-      zone.direction.includes("DOWN");
+      zone.direction.includes("DOWN") ||
+      type.includes("BEARISH");
 
     const color = isOB ? "#3b82f6" : (isBear ? "#f6465d" : "#0ecb81");
 
@@ -576,6 +560,7 @@ async function scanMarket() {
   if (scanBusy) return;
 
   scanBusy = true;
+  const requestId = ++activeRequestId;
 
   const btn = document.getElementById("scanBtn");
   const status = document.getElementById("aiStatus");
@@ -583,26 +568,27 @@ async function scanMarket() {
   const interval = document.getElementById("timeframe").value;
 
   btn.disabled = true;
-  btn.innerText = "Scanning market...";
-  status.innerText = "REQUESTING MARKET DATA...";
+  btn.textContent = "Scanning market...";
+  status.textContent = "REQUESTING MARKET DATA...";
   status.style.color = "#f5d879";
-  summary.innerText = "Connecting to the Vercel API. Please wait.";
+  summary.textContent = "Connecting to the Vercel API. Please wait.";
 
   try {
-    const url = `${SCAN_API_BASE}/api/scan?interval=${encodeURIComponent(interval)}&t=${Date.now()}`;
+    const url = new URL(`${SCAN_API_BASE}/api/scan`);
+    url.searchParams.set("interval", interval);
+    url.searchParams.set("_", String(Date.now()));
 
-    const response = await fetch(url, {
+    const response = await fetch(url.toString(), {
       method: "GET",
       headers: { "Accept": "application/json" },
       cache: "no-store"
     });
 
     const contentType = response.headers.get("content-type") || "";
-
     if (!contentType.toLowerCase().includes("application/json")) {
       const responseText = await response.text();
       throw new Error(
-        `API ne JSON ke bajaye ${contentType || "unknown response"} return kiya. HTTP ${response.status}. ${responseText.slice(0, 180)}`
+        `API returned a non-JSON response (HTTP ${response.status}). ${responseText.slice(0, 150)}`
       );
     }
 
@@ -612,51 +598,47 @@ async function scanMarket() {
       throw new Error(data.error || `API request failed: HTTP ${response.status}`);
     }
 
-    if (typeof data.price !== "number" || !data.signal) {
+    if (!Number.isFinite(Number(data.price)) || !data.signal) {
       throw new Error("API response mein price ya signal field missing hai.");
     }
 
+    const candles = normalizeCandles(data.candles || []);
+    if (candles.length < 2) {
+      throw new Error("API ne valid candlestick data return nahi kiya.");
+    }
+
+    if (requestId !== activeRequestId) return;
+
+    if (!asmcChart || !candleSeries) startASMCChart();
+    if (!candleSeries || !asmcChart) {
+      throw new Error("Chart initialize nahi hua. Page refresh karke dobara try karein.");
+    }
+
+    const previousInterval = lastAnalysis ? lastAnalysis.timeframe : null;
+    const intervalChanged = previousInterval && previousInterval !== (data.timeframe || interval);
+
     lastAnalysis = data;
+    lastSuccessfulCandles = candles;
 
-    document.getElementById("livePriceDisplay").innerText =
-      formatPrice(data.price);
+    candleSeries.setData(candles);
 
-    document.getElementById("candleTime").innerText =
-      data.candleTime || "—";
-
-    document.getElementById("entryPrice").innerText =
-      formatPrice(data.entry);
-
-    document.getElementById("slPrice").innerText =
-      formatPrice(data.stopLoss);
-
-    document.getElementById("tpPrice").innerText =
-      formatPrice(data.takeProfit);
-
-    document.getElementById("rrValue").innerText =
-      data.riskReward || "—";
+    document.getElementById("livePriceDisplay").textContent = formatPrice(data.price);
+    document.getElementById("candleTime").textContent = data.candleTime || "—";
+    document.getElementById("entryPrice").textContent = formatPrice(data.entry);
+    document.getElementById("slPrice").textContent = formatPrice(data.stopLoss);
+    document.getElementById("tpPrice").textContent = formatPrice(data.takeProfit);
+    document.getElementById("rrValue").textContent = data.riskReward || "—";
 
     setSignalState(data.signal, data.reason);
 
-    /* Update candlestick chart */
-    const candles = normalizeCandles(data.candles || []);
-
-    if (candles.length && candleSeries) {
-      candleSeries.setData(candles);
-      document.getElementById("chartMessage").style.display = "none";
-
-      if (!chartReady || !lastAnalysis) {
-        asmcChart.timeScale().fitContent();
-      } else {
-        asmcChart.timeScale().fitContent();
-      }
-
-      drawZones();
-    } else {
-      document.getElementById("chartMessage").style.display = "block";
-      document.getElementById("chartMessage").innerText =
-        "API response mein candle data nahi mila.";
+    // Fit on the first successful load only, not every refresh.
+    if (!chartHasData || intervalChanged) {
+      asmcChart.timeScale().fitContent();
     }
+    chartHasData = true;
+
+    setChartMessage("", false);
+    drawZones();
 
     const details = [
       `Symbol: ${data.symbol || "XAU/USD"}`,
@@ -667,59 +649,47 @@ async function scanMarket() {
       `Fair Value Gap: ${formatZone(data.fvg)}`,
       `Order Block: ${formatZone(data.orderBlock)}`,
       "",
-      `Analysis: ${data.note || "Rule-based technical analysis only."}`,
+      `Reason: ${data.reason || "No detailed reason supplied."}`,
+      `Note: ${data.note || "Rule-based technical analysis only."}`,
       "",
-      `Chart candles received: ${candles.length}`
+      `Candles loaded: ${candles.length}`
     ];
 
-    summary.innerText = details.join("\n");
-    status.innerText = "SCAN COMPLETE · RULE-BASED";
+    summary.textContent = details.join("\n");
+    status.textContent = "SCAN COMPLETE · RULE-BASED";
     status.style.color = "#0ecb81";
 
   } catch (error) {
     console.error("SMC scan error:", error);
 
-    status.innerText = "SCAN ERROR";
+    status.textContent = "SCAN ERROR";
     status.style.color = "#f6465d";
-
-    let message = error.message || "Unable to scan the market.";
-
-    if (error instanceof TypeError && /fetch/i.test(message)) {
-      message =
-        "Vercel API connection fail hua. API deployment aur CORS settings check karein.";
-    }
-
-    summary.innerText = message;
+    summary.textContent = error.message || "Unable to scan market.";
 
     setSignalState(
       "NO SIGNAL",
-      "Scan complete nahi hua. Error fix hone tak trade signal use na karein."
+      "Scan failed. Error fix hone tak displayed signal ko trade ke liye use na karein."
     );
 
-    document.getElementById("chartMessage").style.display = "block";
-    document.getElementById("chartMessage").innerText =
-      "Unable to load candles. Check API response.";
-
-    document.getElementById("livePriceDisplay").innerText = "Unavailable";
-    document.getElementById("entryPrice").innerText = "—";
-    document.getElementById("slPrice").innerText = "—";
-    document.getElementById("tpPrice").innerText = "—";
-    document.getElementById("rrValue").innerText = "—";
-    document.getElementById("candleTime").innerText = "—";
+    setChartMessage("Unable to refresh candles. Check API connection.");
+    document.getElementById("livePriceDisplay").textContent = "Unavailable";
+    document.getElementById("entryPrice").textContent = "—";
+    document.getElementById("slPrice").textContent = "—";
+    document.getElementById("tpPrice").textContent = "—";
+    document.getElementById("rrValue").textContent = "—";
+    document.getElementById("candleTime").textContent = "—";
 
   } finally {
     scanBusy = false;
     btn.disabled = false;
-    btn.innerText = "🔎 Scan Market";
+    btn.textContent = "🔎 Scan Market";
   }
 }
 
-/* Redraw zones when timeframe changes; scan new timeframe */
+/* Scan the newly selected timeframe */
 document.getElementById("timeframe").addEventListener("change", () => {
-  if (document.getElementById("dashboardScreen").style.display !== "none" &&
-      document.getElementById("dashboardScreen").style.display !== "") {
-    scanMarket();
-  }
+  chartHasData = false;
+  scanMarket();
 });
 </script>
 
