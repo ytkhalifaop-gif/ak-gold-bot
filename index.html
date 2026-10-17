@@ -1,192 +1,144 @@
-<!DOCTYPE html>
-<html lang="ur">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AK Gold Scalping Bot VIP - Realtime Exact Sync</title>
-    <!-- Firebase SDKs -->
-    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
-    <style>
-        body {
-            background-color: #0b0e14;
-            color: #ffffff;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 0;
-            padding: 0;
-        }
-        .login-wrapper {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            padding: 20px;
-            box-sizing: border-box;
-        }
-        .login-card {
-            background: #181a20;
-            padding: 30px;
-            border-radius: 12px;
-            border: 1px solid #f0b90b;
-            box-shadow: 0 0 25px rgba(240, 185, 11, 0.2);
-            text-align: center;
-            width: 100%;
-            max-width: 380px;
-        }
-        .login-card h2 { color: #f0b90b; margin-top: 0; }
-        input {
-            width: 100%;
-            padding: 12px;
-            border-radius: 6px;
-            border: 1px solid #2b313a;
-            background: #0b0e14;
-            color: #fff;
-            font-size: 16px;
-            text-align: center;
-            margin: 15px 0;
-            box-sizing: border-box;
-            text-transform: uppercase;
-        }
-        button {
-            width: 100%;
-            padding: 12px;
-            border: none;
-            border-radius: 6px;
-            background: #f0b90b;
-            color: #000;
-            font-weight: bold;
-            font-size: 16px;
-            cursor: pointer;
-            transition: 0.2s;
-        }
-        button:hover { background: #d8a40a; }
-        #statusMsg { 
-            margin-top: 15px; 
-            font-size: 13px; 
-            font-weight: bold; 
-            padding: 10px;
-            border-radius: 6px;
-            word-break: break-word;
-        }
 
-        .dashboard-container {
-            display: none;
-            padding: 15px;
-        }
-        .top-navbar {
-            background: #181a20;
-            padding: 12px 20px;
-            border-radius: 8px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 2px solid #2b313a;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
-        .brand-title { color: #f0b90b; font-weight: bold; font-size: 18px; }
-        .timer-badge {
-            background: #222730;
-            padding: 6px 14px;
-            border-radius: 20px;
-            font-size: 13px;
-            color: #0ecb81;
-            border: 1px solid #0ecb81;
-        }
-        .main-grid {
-            display: grid;
-            grid-template-columns: 3fr 1fr;
-            gap: 15px;
-            margin-top: 15px;
-        }
-        @media (max-width: 900px) {
-            .main-grid { grid-template-columns: 1fr; }
-        }
-        .chart-box {
-            background: #181a20;
-            border-radius: 10px;
-            padding: 10px;
-            height: 550px;
-        }
-        .signal-box {
-            background: #181a20;
-            border-radius: 10px;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-        }
-        .signal-card {
-            background: #222730;
-            border-radius: 8px;
-            padding: 15px;
-            border-left: 5px solid #0ecb81;
-        }
-        .ai-card {
-            background: linear-gradient(135deg, #1e1b4b 0%, #31103f 100%);
-            border: 1px solid #a855f7;
-            border-radius: 8px;
-            padding: 15px;
-        }
-    </style>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AK Gold Scalping Bot VIP - XAUUSD SMC Analyzer</title>
+
+<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+
+<style>
+*{box-sizing:border-box}
+body{background:#0b0e14;color:#fff;font-family:Arial,sans-serif;margin:0}
+.login-wrapper{display:flex;justify-content:center;align-items:center;min-height:100vh;padding:20px}
+.login-card{background:#181a20;padding:30px;border-radius:12px;border:1px solid #f0b90b;box-shadow:0 0 25px #f0b90b22;text-align:center;width:100%;max-width:380px}
+.login-card h2{color:#f0b90b}
+input{width:100%;padding:12px;border-radius:6px;border:1px solid #333;background:#0b0e14;color:#fff;font-size:16px;margin:15px 0;text-align:center;text-transform:uppercase}
+button,select{padding:11px 12px;border:1px solid #3a414d;border-radius:6px;background:#f0b90b;color:#000;font-weight:bold;font-size:14px;cursor:pointer}
+button:disabled{opacity:.55;cursor:wait}
+#statusMsg{margin-top:15px;font-size:13px;font-weight:bold;padding:10px;border-radius:6px;word-break:break-word}
+.dashboard-container{display:none;padding:15px}
+.top-navbar{background:#181a20;padding:14px 18px;border-radius:8px;display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #2b313a;flex-wrap:wrap;gap:10px}
+.brand-title{color:#f0b90b;font-weight:bold;font-size:18px}
+.timer-badge{background:#222730;padding:7px 12px;border-radius:20px;font-size:12px;color:#0ecb81;border:1px solid #0ecb81}
+.main-grid{display:grid;grid-template-columns:minmax(0,3fr) minmax(300px,1fr);gap:15px;margin-top:15px}
+.chart-box,.signal-box{background:#181a20;border-radius:10px;padding:12px;min-width:0}
+.chart-box{height:570px}
+.signal-box{display:flex;flex-direction:column;gap:14px}
+.section-title{color:#f0b90b;margin:0}
+.controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.controls select{background:#222730;color:#fff}
+.signal-card{background:#222730;border-radius:8px;padding:15px;border-left:5px solid #777}
+.value{font-size:25px;font-weight:bold;color:#f0b90b;overflow-wrap:anywhere}
+.muted{color:#aaa;font-size:12px}
+.metric{display:flex;justify-content:space-between;gap:10px;margin:9px 0;font-size:13px}
+.metric span{color:#aaa}
+.scan-btn{width:100%;padding:14px;font-size:15px}
+.ai-card{background:linear-gradient(135deg,#1e1b4b,#31103f);border:1px solid #a855f7;border-radius:8px;padding:15px}
+.zone-list{font-size:12px;line-height:1.8;color:#ddd;white-space:pre-line;overflow-wrap:anywhere}
+.notice{background:#2b2412;border:1px solid #8a6b16;color:#f5d879;padding:10px;border-radius:7px;font-size:12px;line-height:1.6}
+@media(max-width:900px){.main-grid{grid-template-columns:1fr}.chart-box{height:420px}}
+</style>
 </head>
+
 <body>
 
-<!-- 🔑 LOGIN PORTAL -->
+<!-- LOGIN / LICENSE SCREEN -->
 <div class="login-wrapper" id="loginScreen">
-    <div class="login-card">
-        <h2>👑 AK GOLD SCALPING BOT</h2>
-        <p style="color: #888; font-size: 12px;">Enter your purchased license key to launch XAUUSD Scalper</p>
-        
-        <input type="text" id="userKeyInput" placeholder="GOLD-7D-XXXXX" required>
-        <button id="authBtn" onclick="verifyAndLogin()">Activate & Launch</button>
-        
-        <div id="statusMsg"></div>
-    </div>
+  <div class="login-card">
+    <h2>👑 AK GOLD SCALPING BOT</h2>
+    <p style="color:#888;font-size:12px">
+      Enter your purchased license key to launch XAUUSD Scalper
+    </p>
+    <input type="text" id="userKeyInput" placeholder="GOLD-7D-XXXXX" required>
+    <button id="authBtn" onclick="verifyAndLogin()" style="width:100%">
+      Activate &amp; Launch
+    </button>
+    <div id="statusMsg" style="display:none"></div>
+  </div>
 </div>
 
-<!-- 📈 TRADING DASHBOARD -->
+<!-- DASHBOARD -->
 <div class="dashboard-container" id="dashboardScreen">
-    <div class="top-navbar">
-        <div class="brand-title">⚡ AK GOLD SCALPING BOT VIP <span style="font-size: 12px; color: #0ecb81;">● Live Sync Active</span></div>
-        <div class="timer-badge" id="expiryTimer">⏳ Verifying Access...</div>
+  <div class="top-navbar">
+    <div class="brand-title">
+      ⚡ AK GOLD SCALPING BOT VIP
+      <span style="font-size:12px;color:#0ecb81">● Dashboard</span>
+    </div>
+    <div class="timer-badge" id="expiryTimer">⏳ Verifying Access...</div>
+  </div>
+
+  <div class="main-grid">
+    <div class="chart-box">
+      <div id="tradingview_xauusd_chart" style="height:100%;width:100%"></div>
     </div>
 
-    <div class="main-grid">
-        <div class="chart-box">
-            <div id="tradingview_xauusd_chart" style="height:100%;"></div>
+    <div class="signal-box">
+      <h3 class="section-title">📊 Live XAUUSD SMC Scan</h3>
+
+      <div class="controls">
+        <label for="timeframe" class="muted">Timeframe:</label>
+        <select id="timeframe">
+          <option value="5min">5 Minutes</option>
+          <option value="15min">15 Minutes</option>
+          <option value="1h">1 Hour</option>
+        </select>
+      </div>
+
+      <div class="signal-card" id="signalContainer">
+        <div class="muted">MARKET PRICE · API FEED</div>
+        <div id="livePriceDisplay" class="value">Waiting for scan...</div>
+
+        <hr style="border-color:#333;margin:12px 0">
+
+        <div class="muted">SIGNAL</div>
+        <div id="signalType" style="font-size:20px;font-weight:bold;color:#f5d879;margin:6px 0">
+          NOT SCANNED
+        </div>
+        <div id="setupType" style="color:#ccc;font-size:12px;line-height:1.5">
+          Press Scan Market to analyze current candles.
         </div>
 
-        <div class="signal-box">
-            <h3 style="color:#f0b90b; margin:0;">📊 Live SMC & FVG Setup</h3>
-            
-            <div class="signal-card" id="signalContainer">
-                <div style="font-size: 12px; color: #aaa;">LIVE MARKET PRICE</div>
-                <div id="livePriceDisplay" style="color: #f0b90b; font-size: 22px; font-weight: bold;">Syncing...</div>
-                <hr style="border-color: #333; margin: 8px 0;">
-                <div style="font-size: 12px; color: #aaa;">SIGNAL ACTION</div>
-                <div id="signalType" style="color: #0ecb81; font-size: 18px; font-weight: bold;">ANALYZING...</div>
-                <small id="setupType" style="color: #ccc;">Zone: Real-time Order Block Check</small>
-                <hr style="border-color: #333; margin: 8px 0;">
-                <div style="display: flex; justify-content: space-between;"><span>Entry:</span> <b id="entryPrice">0.00</b></div>
-                <div style="display: flex; justify-content: space-between;"><span>Stop Loss:</span> <span id="slPrice" style="color:#f6465d;">0.00</span></div>
-                <div style="display: flex; justify-content: space-between;"><span>Take Profit:</span> <span id="tpPrice" style="color:#0ecb81;">0.00</span></div>
-            </div>
+        <hr style="border-color:#333;margin:12px 0">
 
-            <div class="ai-card">
-                <h4 style="margin:0; color:#a855f7;">🤖 AK AI SMC Analyzer</h4>
-                <p style="margin: 8px 0; font-size: 14px;">Status: <b id="aiStatus" style="color: #0ecb81;">SYNCED (100%)</b></p>
-                <small style="color: #ddd;">Direct chart feed liquidity & FVG scan active.</small>
-            </div>
+        <div class="metric"><span>Entry</span><b id="entryPrice">—</b></div>
+        <div class="metric"><span>Stop Loss</span><b id="slPrice" style="color:#f6465d">—</b></div>
+        <div class="metric"><span>Take Profit</span><b id="tpPrice" style="color:#0ecb81">—</b></div>
+        <div class="metric"><span>Risk / Reward</span><b id="rrValue">—</b></div>
+        <div class="metric"><span>Last candle</span><b id="candleTime">—</b></div>
+      </div>
+
+      <button class="scan-btn" id="scanBtn" onclick="scanMarket()">
+        🔎 Scan Market
+      </button>
+
+      <div class="ai-card">
+        <h4 style="margin:0;color:#c084fc">🤖 SMC Analysis Engine</h4>
+        <p style="font-size:13px">
+          Status:
+          <b id="aiStatus" style="color:#f5d879">READY TO SCAN</b>
+        </p>
+        <div id="analysisSummary" class="zone-list">
+Select a timeframe and press Scan Market.
         </div>
+      </div>
+
+      <div class="notice">
+        ⚠️ Analysis is rule-based, not a guaranteed prediction or separate AI confirmation.
+        Always verify the quote with your Exness broker before trading.
+      </div>
     </div>
+  </div>
 </div>
 
-<script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+<script src="https://s3.tradingview.com/tv.js"></script>
 
 <script>
+/* FIREBASE CONFIGURATION */
 const firebaseConfig = {
-  apiKey: "AIzaSyCJ33U01UrTa47tpBAJrzLCKk8ql6CqsKQ",
+  apiKey: "AIzaSyCJ33U01UrTa47tpBAJrzLCKk8ql6CqsQ",
   authDomain: "ak-forex-primiume-bot.firebaseapp.com",
   projectId: "ak-forex-primiume-bot",
   storageBucket: "ak-forex-primiume-bot.firebasestorage.app",
@@ -196,156 +148,270 @@ const firebaseConfig = {
 };
 
 try {
-    firebase.initializeApp(firebaseConfig);
-} catch (e) {}
+  if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+} catch (e) {
+  console.error("Firebase initialization error:", e);
+}
+
 const db = firebase.firestore();
 
+/* DEVICE ID - ORIGINAL LICENSE FLOW PRESERVED */
 function getDeviceID() {
-    let deviceID = localStorage.getItem("device_fingerprint");
-    if (!deviceID) {
-        deviceID = "DEV-" + Math.random().toString(36).substring(2, 12).toUpperCase();
-        localStorage.setItem("device_fingerprint", deviceID);
-    }
-    return deviceID;
+  let deviceID = localStorage.getItem("device_fingerprint");
+
+  if (!deviceID) {
+    deviceID = "DEV-" + Math.random().toString(36).substring(2, 12).toUpperCase();
+    localStorage.setItem("device_fingerprint", deviceID);
+  }
+
+  return deviceID;
 }
 
 function showStatus(msg, isError = false) {
-    const statusMsg = document.getElementById('statusMsg');
-    statusMsg.style.display = "block";
-    statusMsg.style.color = isError ? "#f6465d" : "#0ecb81";
-    statusMsg.style.background = isError ? "rgba(246, 70, 93, 0.1)" : "rgba(14, 203, 129, 0.1)";
-    statusMsg.style.border = isError ? "1px solid #f6465d" : "1px solid #0ecb81";
-    statusMsg.innerText = msg;
+  const statusMsg = document.getElementById("statusMsg");
+  statusMsg.style.display = "block";
+  statusMsg.style.color = isError ? "#f6465d" : "#0ecb81";
+  statusMsg.style.background = isError
+    ? "rgba(246,70,93,.1)"
+    : "rgba(14,203,129,.1)";
+  statusMsg.style.border = isError
+    ? "1px solid #f6465d"
+    : "1px solid #0ecb81";
+  statusMsg.innerText = msg;
 }
 
+/* LICENSE VALIDATION - KEEP THIS LOGIC */
 async function verifyAndLogin() {
-    const inputKey = document.getElementById('userKeyInput').value.trim().toUpperCase();
-    const btn = document.getElementById('authBtn');
-    const deviceID = getDeviceID();
+  const inputKey = document.getElementById("userKeyInput").value.trim().toUpperCase();
+  const btn = document.getElementById("authBtn");
+  const deviceID = getDeviceID();
 
-    if (!inputKey) {
-        showStatus("⚠️ Please enter your Key!", true);
-        return;
+  if (!inputKey) {
+    showStatus("⚠️ Please enter your Key!", true);
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerText = "Checking Key...";
+
+  try {
+    const docRef = db.collection("licenses").doc(inputKey);
+    const docSnap = await docRef.get();
+
+    if (!docSnap.exists) {
+      showStatus("❌ Invalid License Key!", true);
+      btn.disabled = false;
+      btn.innerText = "Activate & Launch";
+      return;
     }
 
-    btn.disabled = true;
-    btn.innerText = "Checking Key...";
+    const data = docSnap.data();
+    const now = new Date();
+    const expiryDate = new Date(data.expiresAt);
+
+    if (!data.isActive || now > expiryDate) {
+      showStatus("🚫 Key Expired or Inactive!", true);
+      btn.disabled = false;
+      btn.innerText = "Activate & Launch";
+      return;
+    }
+
+    if (data.boundDevice && data.boundDevice !== deviceID) {
+      showStatus("🚫 Key locked to another Device!", true);
+      btn.disabled = false;
+      btn.innerText = "Activate & Launch";
+      return;
+    }
+
+    if (!data.boundDevice) {
+      await docRef.update({ boundDevice: deviceID });
+    }
+
+    showStatus("✅ Success! Launching...", false);
+
+    setTimeout(() => {
+      document.getElementById("loginScreen").style.display = "none";
+      document.getElementById("dashboardScreen").style.display = "block";
+
+      const diffTime = Math.abs(expiryDate - now);
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+      document.getElementById("expiryTimer").innerText =
+        `⏳ License: ${diffDays} Days Left`;
+
+      if (typeof TradingView !== "undefined") {
+        new TradingView.widget({
+          autosize: true,
+          symbol: "FX_IDC:XAUUSD",
+          interval: "5",
+          timezone: "Etc/UTC",
+          theme: "dark",
+          style: "1",
+          locale: "en",
+          container_id: "tradingview_xauusd_chart"
+        });
+      }
+
+      setFeedStatus();
+    }, 1000);
+
+  } catch (error) {
+    showStatus("❌ Error: " + error.message, true);
+    btn.disabled = false;
+    btn.innerText = "Activate & Launch";
+  }
+}
+
+/* SCAN API - KEY STAYS ON VERCEL, NOT IN THIS HTML */
+let scanBusy = false;
+let lastAnalysis = null;
+
+function setFeedStatus() {
+  document.getElementById("aiStatus").innerText = "READY · SERVER API";
+  document.getElementById("aiStatus").style.color = "#0ecb81";
+  document.getElementById("analysisSummary").innerText =
+    "Server API ready. Press Scan Market to fetch candle data and analyze structure.";
+}
+
+function formatPrice(value) {
+  if (value === null || value === undefined || !Number.isFinite(Number(value))) {
+    return "—";
+  }
+
+  return Number(value).toFixed(Number(value) >= 100 ? 2 : 3);
+}
+
+function formatZone(zone) {
+  if (!zone || zone.low === undefined || zone.high === undefined) {
+    return "No zone identified";
+  }
+
+  return `${zone.type || "Zone"}: ${formatPrice(zone.low)} – ${formatPrice(zone.high)}`;
+}
+
+function setSignalState(signal, description) {
+  const signalEl = document.getElementById("signalType");
+  const card = document.getElementById("signalContainer");
+
+  signalEl.innerText = signal || "WAIT";
+
+  const buy = String(signal).toUpperCase().startsWith("BUY");
+  const sell = String(signal).toUpperCase().startsWith("SELL");
+  const color = buy ? "#0ecb81" : sell ? "#f6465d" : "#f5d879";
+
+  signalEl.style.color = color;
+  card.style.borderLeftColor = color;
+
+  document.getElementById("setupType").innerText =
+    description || "No confirmed setup. Wait for clearer conditions.";
+}
+
+async function scanMarket() {
+  if (scanBusy) return;
+
+  scanBusy = true;
+
+  const btn = document.getElementById("scanBtn");
+  const status = document.getElementById("aiStatus");
+  const summary = document.getElementById("analysisSummary");
+  const interval = document.getElementById("timeframe").value;
+
+  btn.disabled = true;
+  btn.innerText = "Scanning market...";
+  status.innerText = "REQUESTING MARKET DATA...";
+  status.style.color = "#f5d879";
+  summary.innerText = "Fetching candles from the server. Please wait.";
+
+  try {
+    const response = await fetch(
+      `/api/scan?interval=${encodeURIComponent(interval)}`,
+      {
+        method: "GET",
+        headers: { "Accept": "application/json" },
+        cache: "no-store"
+      }
+    );
+
+    let data;
 
     try {
-        const docRef = db.collection("licenses").doc(inputKey);
-        const docSnap = await docRef.get();
-
-        if (!docSnap.exists) {
-            showStatus("❌ Invalid License Key!", true);
-            btn.disabled = false;
-            btn.innerText = "Activate & Launch";
-            return;
-        }
-
-        const data = docSnap.data();
-        const now = new Date();
-        const expiryDate = new Date(data.expiresAt);
-
-        if (!data.isActive || now > expiryDate) {
-            showStatus("🚫 Key Expired or Inactive!", true);
-            btn.disabled = false;
-            btn.innerText = "Activate & Launch";
-            return;
-        }
-
-        if (data.boundDevice && data.boundDevice !== deviceID) {
-            showStatus("🚫 Key locked to another Device!", true);
-            btn.disabled = false;
-            btn.innerText = "Activate & Launch";
-            return;
-        }
-
-        if (!data.boundDevice) {
-            await docRef.update({ boundDevice: deviceID });
-        }
-
-        showStatus("✅ Success! Launching...", false);
-
-        setTimeout(() => {
-            document.getElementById('loginScreen').style.display = 'none';
-            document.getElementById('dashboardScreen').style.display = 'block';
-
-            const diffTime = Math.abs(expiryDate - now);
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            document.getElementById('expiryTimer').innerText = `⏳ License: ${diffDays} Days Left`;
-
-            // Load TradingView Chart (Standard Gold Spot)
-            new TradingView.widget({
-                "autosize": true,
-                "symbol": "FX_IDC:XAUUSD",
-                "interval": "5",
-                "timezone": "Etc/UTC",
-                "theme": "dark",
-                "style": "1",
-                "locale": "en",
-                "container_id": "tradingview_xauusd_chart"
-            });
-
-            // Start Realtime Direct Matching Feed
-            startExactPriceSyncEngine();
-        }, 1000);
-
-    } catch (error) {
-        showStatus("❌ Error: " + error.message, true);
-        btn.disabled = false;
-        btn.innerText = "Activate & Launch";
-    }
-}
-
-// 100% Matching Live Price & SMC Engine
-function startExactPriceSyncEngine() {
-    async function fetchExactPrice() {
-        try {
-            // Live Forex/Gold Feed directly matching TradingView FX_IDC:XAUUSD Spot
-            const response = await fetch("https://api.binance.com/api/3/ticker/price?symbol=PAXGUSDT");
-            const data = await response.json();
-            if (data && data.price) {
-                let livePrice = parseFloat(data.price);
-                updateExactAnalysis(livePrice);
-            } else {
-                throw new Error("API Fallback");
-            }
-        } catch (e) {
-            // High Precision Fallback matching current live Gold market tier
-            let livePrice = 2720.50 + (Math.random() * 1.5 - 0.75);
-            updateExactAnalysis(livePrice);
-        }
+      data = await response.json();
+    } catch (_) {
+      throw new Error(
+        "Server response is not valid JSON. Confirm api/scan.js exists in your deployed project."
+      );
     }
 
-    function updateExactAnalysis(price) {
-        let roundedPrice = parseFloat(price.toFixed(2));
-        document.getElementById('livePriceDisplay').innerText = roundedPrice;
-
-        // Dynamic SMC Entry, SL, and TP relative to EXACT live chart price
-        let signal = (Math.floor(roundedPrice * 10) % 2 === 0) ? "BUY SCALP" : "SELL SCALP";
-        let entry = roundedPrice;
-        let sl = signal.includes("BUY") ? (entry - 3.50).toFixed(2) : (entry + 3.50).toFixed(2);
-        let tp = signal.includes("BUY") ? (entry + 8.00).toFixed(2) : (entry - 8.00).toFixed(2);
-        let setup = signal.includes("BUY") ? "Bullish Order Block + FVG Re-test" : "Bearish Liquidity Sweep + FVG Rejection";
-
-        document.getElementById('signalType').innerText = signal;
-        document.getElementById('setupType').innerText = "Zone: " + setup;
-        document.getElementById('entryPrice').innerText = entry;
-        document.getElementById('slPrice').innerText = sl;
-        document.getElementById('tpPrice').innerText = tp;
-
-        const container = document.getElementById('signalContainer');
-        if (signal.includes("BUY")) {
-            document.getElementById('signalType').style.color = "#0ecb81";
-            container.style.borderLeftColor = "#0ecb81";
-        } else {
-            document.getElementById('signalType').style.color = "#f6465d";
-            container.style.borderLeftColor = "#f6465d";
-        }
+    if (!response.ok) {
+      throw new Error(data.error || `API request failed: ${response.status}`);
     }
 
-    fetchExactPrice();
-    setInterval(fetchExactPrice, 1000);
+    if (typeof data.price !== "number" || !data.signal) {
+      throw new Error("API response is missing required price or signal fields.");
+    }
+
+    lastAnalysis = data;
+
+    document.getElementById("livePriceDisplay").innerText =
+      formatPrice(data.price);
+
+    document.getElementById("candleTime").innerText =
+      data.candleTime || "—";
+
+    document.getElementById("entryPrice").innerText =
+      formatPrice(data.entry);
+
+    document.getElementById("slPrice").innerText =
+      formatPrice(data.stopLoss);
+
+    document.getElementById("tpPrice").innerText =
+      formatPrice(data.takeProfit);
+
+    document.getElementById("rrValue").innerText =
+      data.riskReward || "—";
+
+    setSignalState(data.signal, data.reason);
+
+    const details = [
+      `Symbol: ${data.symbol || "XAU/USD"}`,
+      `Timeframe: ${data.timeframe || interval}`,
+      `Market structure: ${data.structure || "Not identified"}`,
+      `Swing high: ${formatPrice(data.swingHigh)}`,
+      `Swing low: ${formatPrice(data.swingLow)}`,
+      `Fair Value Gap: ${formatZone(data.fvg)}`,
+      `Order Block: ${formatZone(data.orderBlock)}`,
+      "",
+      `Analysis: ${data.note || "Rule-based technical analysis."}`
+    ];
+
+    summary.innerText = details.join("\n");
+    status.innerText = "SCAN COMPLETE · RULE-BASED";
+    status.style.color = "#0ecb81";
+
+  } catch (error) {
+    status.innerText = "SCAN ERROR";
+    status.style.color = "#f6465d";
+
+    summary.innerText = error.message ||
+      "Unable to scan the market. Please try again.";
+
+    setSignalState(
+      "NO SIGNAL",
+      "No valid analysis returned. Check the API configuration before trading."
+    );
+
+    document.getElementById("livePriceDisplay").innerText = "Unavailable";
+    document.getElementById("entryPrice").innerText = "—";
+    document.getElementById("slPrice").innerText = "—";
+    document.getElementById("tpPrice").innerText = "—";
+    document.getElementById("rrValue").innerText = "—";
+    document.getElementById("candleTime").innerText = "—";
+
+  } finally {
+    scanBusy = false;
+    btn.disabled = false;
+    btn.innerText = "🔎 Scan Market";
+  }
 }
 </script>
 
