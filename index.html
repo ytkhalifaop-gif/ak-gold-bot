@@ -8,6 +8,7 @@
 
 <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+<script src="https://s3.tradingview.com/tv.js"></script>
 
 <style>
 *{box-sizing:border-box}
@@ -29,23 +30,27 @@ button:disabled{opacity:.55;cursor:wait}
 .signal-box{display:flex;flex-direction:column;gap:14px}
 .section-title{color:#f0b90b;margin:0}
 .controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.controls select{background:#222730;color:#fff}
+.controls select{background:#222730;color:#fff;max-width:100%}
 .signal-card{background:#222730;border-radius:8px;padding:15px;border-left:5px solid #777}
 .value{font-size:25px;font-weight:bold;color:#f0b90b;overflow-wrap:anywhere}
 .muted{color:#aaa;font-size:12px}
 .metric{display:flex;justify-content:space-between;gap:10px;margin:9px 0;font-size:13px}
 .metric span{color:#aaa}
+.metric b{overflow-wrap:anywhere;text-align:right}
 .scan-btn{width:100%;padding:14px;font-size:15px}
 .ai-card{background:linear-gradient(135deg,#1e1b4b,#31103f);border:1px solid #a855f7;border-radius:8px;padding:15px}
 .zone-list{font-size:12px;line-height:1.8;color:#ddd;white-space:pre-line;overflow-wrap:anywhere}
 .notice{background:#2b2412;border:1px solid #8a6b16;color:#f5d879;padding:10px;border-radius:7px;font-size:12px;line-height:1.6}
-@media(max-width:900px){.main-grid{grid-template-columns:1fr}.chart-box{height:420px}}
+@media(max-width:900px){
+ .main-grid{grid-template-columns:1fr}
+ .chart-box{height:420px}
+}
 </style>
 </head>
 
 <body>
 
-<!-- LOGIN / LICENSE SCREEN -->
+<!-- ORIGINAL LICENSE / LOCK SCREEN: PRESERVED -->
 <div class="login-wrapper" id="loginScreen">
   <div class="login-card">
     <h2>👑 AK GOLD SCALPING BOT</h2>
@@ -133,10 +138,8 @@ Select a timeframe and press Scan Market.
   </div>
 </div>
 
-<script src="https://s3.tradingview.com/tv.js"></script>
-
 <script>
-/* FIREBASE CONFIGURATION */
+/* FIREBASE CONFIGURATION - PRESERVED */
 const firebaseConfig = {
   apiKey: "AIzaSyCJ33U01UrTa47tpBAJrzLCKk8ql6CqsQ",
   authDomain: "ak-forex-primiume-bot.firebaseapp.com",
@@ -155,7 +158,7 @@ try {
 
 const db = firebase.firestore();
 
-/* DEVICE ID - ORIGINAL LICENSE FLOW PRESERVED */
+/* DEVICE ID - ORIGINAL LOGIC PRESERVED */
 function getDeviceID() {
   let deviceID = localStorage.getItem("device_fingerprint");
 
@@ -180,7 +183,7 @@ function showStatus(msg, isError = false) {
   statusMsg.innerText = msg;
 }
 
-/* LICENSE VALIDATION - KEEP THIS LOGIC */
+/* LICENSE VALIDATION - UNCHANGED */
 async function verifyAndLogin() {
   const inputKey = document.getElementById("userKeyInput").value.trim().toUpperCase();
   const btn = document.getElementById("authBtn");
@@ -262,7 +265,8 @@ async function verifyAndLogin() {
   }
 }
 
-/* SCAN API - KEY STAYS ON VERCEL, NOT IN THIS HTML */
+/* SCANNER - USE VERCEL API */
+const SCAN_API_BASE = "https://ak-gold-bot.vercel.app";
 let scanBusy = false;
 let lastAnalysis = null;
 
@@ -270,19 +274,20 @@ function setFeedStatus() {
   document.getElementById("aiStatus").innerText = "READY · SERVER API";
   document.getElementById("aiStatus").style.color = "#0ecb81";
   document.getElementById("analysisSummary").innerText =
-    "Server API ready. Press Scan Market to fetch candle data and analyze structure.";
+    "Server API ready. Press Scan Market to fetch candles and analyze structure.";
 }
 
 function formatPrice(value) {
-  if (value === null || value === undefined || !Number.isFinite(Number(value))) {
+  if (value === null || value === undefined || value === "" ||
+      !Number.isFinite(Number(value))) {
     return "—";
   }
 
-  return Number(value).toFixed(Number(value) >= 100 ? 2 : 3);
+  return Number(value).toFixed(2);
 }
 
 function formatZone(zone) {
-  if (!zone || zone.low === undefined || zone.high === undefined) {
+  if (!zone || zone.low == null || zone.high == null) {
     return "No zone identified";
   }
 
@@ -295,8 +300,9 @@ function setSignalState(signal, description) {
 
   signalEl.innerText = signal || "WAIT";
 
-  const buy = String(signal).toUpperCase().startsWith("BUY");
-  const sell = String(signal).toUpperCase().startsWith("SELL");
+  const value = String(signal || "").toUpperCase();
+  const buy = value.startsWith("BUY");
+  const sell = value.startsWith("SELL");
   const color = buy ? "#0ecb81" : sell ? "#f6465d" : "#f5d879";
 
   signalEl.style.color = color;
@@ -320,34 +326,34 @@ async function scanMarket() {
   btn.innerText = "Scanning market...";
   status.innerText = "REQUESTING MARKET DATA...";
   status.style.color = "#f5d879";
-  summary.innerText = "Fetching candles from the server. Please wait.";
+  summary.innerText = "Connecting to the Vercel API. Please wait.";
 
   try {
-    const response = await fetch(
-      `/api/scan?interval=${encodeURIComponent(interval)}`,
-      {
-        method: "GET",
-        headers: { "Accept": "application/json" },
-        cache: "no-store"
-      }
-    );
+    const url = `${SCAN_API_BASE}/api/scan?interval=${encodeURIComponent(interval)}&t=${Date.now()}`;
 
-    let data;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { "Accept": "application/json" },
+      cache: "no-store"
+    });
 
-    try {
-      data = await response.json();
-    } catch (_) {
+    const contentType = response.headers.get("content-type") || "";
+
+    if (!contentType.toLowerCase().includes("application/json")) {
+      const responseText = await response.text();
       throw new Error(
-        "Server response is not valid JSON. Confirm api/scan.js exists in your deployed project."
+        `API ne JSON ke bajaye ${contentType || "unknown response"} return kiya. HTTP ${response.status}. ${responseText.slice(0, 180)}`
       );
     }
 
+    const data = await response.json();
+
     if (!response.ok) {
-      throw new Error(data.error || `API request failed: ${response.status}`);
+      throw new Error(data.error || `API request failed: HTTP ${response.status}`);
     }
 
     if (typeof data.price !== "number" || !data.signal) {
-      throw new Error("API response is missing required price or signal fields.");
+      throw new Error("API response mein price ya signal field missing hai.");
     }
 
     lastAnalysis = data;
@@ -381,7 +387,7 @@ async function scanMarket() {
       `Fair Value Gap: ${formatZone(data.fvg)}`,
       `Order Block: ${formatZone(data.orderBlock)}`,
       "",
-      `Analysis: ${data.note || "Rule-based technical analysis."}`
+      `Analysis: ${data.note || "Rule-based technical analysis only."}`
     ];
 
     summary.innerText = details.join("\n");
@@ -389,15 +395,23 @@ async function scanMarket() {
     status.style.color = "#0ecb81";
 
   } catch (error) {
+    console.error("SMC scan error:", error);
+
     status.innerText = "SCAN ERROR";
     status.style.color = "#f6465d";
 
-    summary.innerText = error.message ||
-      "Unable to scan the market. Please try again.";
+    let message = error.message || "Unable to scan the market.";
+
+    if (error instanceof TypeError && /fetch/i.test(message)) {
+      message =
+        "Vercel API se connection fail hua. API CORS settings aur deployment check karein.";
+    }
+
+    summary.innerText = message;
 
     setSignalState(
       "NO SIGNAL",
-      "No valid analysis returned. Check the API configuration before trading."
+      "Scan complete nahi hua. Error fix hone tak trade signal use na karein."
     );
 
     document.getElementById("livePriceDisplay").innerText = "Unavailable";
