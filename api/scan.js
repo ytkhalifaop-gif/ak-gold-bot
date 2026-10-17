@@ -1,13 +1,13 @@
 
 /*
-  ASMC / AK GOLD SCALPING BOT VIP
-  File: api/scan.js
-
-  Vercel Environment Variable:
-  TWELVE_DATA_API_KEY = your Twelve Data API key
-
-  Supported intervals: 5min, 15min, 1h
-*/
+ * AK GOLD SCALPING BOT VIP
+ * File: api/scan.js
+ *
+ * Vercel Environment Variable:
+ * TWELVE_DATA_API_KEY = your Twelve Data API key
+ *
+ * Supported intervals: 5min, 15min, 1h
+ */
 
 const ALLOWED_INTERVALS = new Set(["5min", "15min", "1h"]);
 
@@ -34,8 +34,24 @@ function sendError(res, status, message) {
   });
 }
 
+function round(value, decimals) {
+  return Number(Number(value).toFixed(decimals));
+}
+
+function isBullish(c) {
+  return c.close > c.open;
+}
+
+function isBearish(c) {
+  return c.close < c.open;
+}
+
+function overlaps(zone, candle) {
+  return candle.high >= zone.low && candle.low <= zone.high;
+}
+
 function analyzeCandles(values, interval) {
-  // Twelve Data normally returns candles newest first.
+  // Normalize candles into chronological order.
   const bars = values
     .slice()
     .reverse()
@@ -44,199 +60,423 @@ function analyzeCandles(values, interval) {
       open: Number(c.open),
       high: Number(c.high),
       low: Number(c.low),
-      close: Number(c.close)
+      close: Number(c.close),
+      volume: c.volume == null ? null : Number(c.volume)
     }))
     .filter((c) =>
-      [c.open, c.high, c.low, c.close].every(Number.isFinite)
+      c.time &&
+      [c.open, c.high, c.low, c.close].every(Number.isFinite) &&
+      c.high >= Math.max(c.open, c.close) &&
+      c.low <= Math.min(c.open, c.close) &&
+      c.high >= c.low
     );
 
   if (bars.length < 30) {
-    throw new Error("Not enough valid candles for analysis.");
+    throw new Error("Not enough valid candles. At least 30 are required.");
   }
 
   const last = bars[bars.length - 1];
   const previous = bars[bars.length - 2];
   const decimals = last.close >= 100 ? 2 : 3;
 
-  const recent = bars.slice(-21, -1);
-  const swingHigh = Math.max(...recent.map((c) => c.high));
-  const swingLow = Math.min(...recent.map((c) => c.low));
+  const averageRange =
+    bars.slice(-20).reduce((sum, c) => sum + c.high - c.low, 0) / 20;
 
-  // Find recent Fair Value Gaps.
-  const gaps = [];
+  const minimumGap = Math.max(
+    averageRange * 0.08,
+    last.close * 0.00003
+  );
 
-  for (let i = Math.max(2, bars.length - 30); i < bars.length; i++) {
-    const first = bars[i - 2];
-    const third = bars[i];
+  // Find confirmed swing highs/lows using two candles on each side.
+  const swings = [];
 
-    if (third.low > first.high) {
-      gaps.push({
-        type: "Bullish FVG",
-        low: first.high,
-        high: third.low,
-        index: i
+  for (let i = 2; i < bars.length - 2; i++) {
+    const c = bars[i];
+    const left = bars.slice(i - 2, i);
+    const right = bars.slice(i + 1, i + 3);
+
+    if (
+      left.every((x) => c.high > x.high) &&
+      right.every((x) => c.high >= x.high)
+    ) {
+      swings.push({
+        type: "high",
+        index: i,
+        price: c.high,
+        time: c.time
       });
     }
 
-    if (third.high < first.low) {
-      gaps.push({
-        type: "Bearish FVG",
-        low: third.high,
-        high: first.low,
-        index: i
+    if (
+      left.every((x) => c.low < x.low) &&
+      right.every((x) => c.low <= x.low)
+    ) {
+      swings.push({
+        type: "low",
+        index: i,
+        price: c.low,
+        time: c.time
       });
     }
   }
 
-  // Basic recent Break of Structure.
-  let structure = "No recent BOS";
+  const recentSwings = swings.filter(
+    (s) => s.index >= bars.length - 30
+  );
+
+  const highSwings = recentSwings.filter((s) => s.type === "high");
+  const lowSwings = recentSwings.filter((s) => s.type === "low");
+  const recentBars = bars.slice(-21, -1);
+
+  const swingHigh = highSwings.length
+    ? highSwings[highSwings.length - 1].price
+    : Math.max(...recentBars.map((c) => c.high));
+
+  const swingLow = lowSwings.length
+    ? lowSwings[lowSwings.length - 1].price
+    : Math.min(...recentBars.map((c) => c.low));
+
+  // Detect three-candle Fair Value Gaps.
+  const allFvgs = [];
+  const fvgStart = Math.max(2, bars.length - 60);
+
+  for (let i = fvgStart; i < bars.length; i++) {
+    const first = bars[i - 2];
+    const middle = bars[i - 1];
+    const third = bars[i];
+
+    const middleBody = Math.abs(middle.close - middle.open);
+    const displacementOk = middleBody >= averageRange * 0.25;
+
+    if (
+      third.low - first.high >= minimumGap &&
+      displacementOk
+    ) {
+      const zone = {
+        id: `bull-fvg-${i}`,
+        type: "Bullish FVG",
+        direction: "bullish",
+        low: first.high,
+        high: third.low,
+        startTime: first.time,
+        formedAt: third.time,
+        index: i
+      };
+
+      zone.mitigated = bars.slice(i + 1).some(
+        (c) => c.low <= zone.high && c.high >= zone.low
+      );
+
+      zone.invalidated = bars.slice(i + 1).some(
+        (c) => c.close < zone.low
+      );
+
+      allFvgs.push(zone);
+    }
+
+    if (
+      first.low - third.high >= minimumGap &&
+      displacementOk
+    ) {
+      const zone = {
+        id: `bear-fvg-${i}`,
+        type: "Bearish FVG",
+        direction: "bearish",
+        low: third.high,
+        high: first.low,
+        startTime: first.time,
+        formedAt: third.time,
+        index: i
+      };
+
+      zone.mitigated = bars.slice(i + 1).some(
+        (c) => c.high >= zone.low && c.low <= zone.high
+      );
+
+      zone.invalidated = bars.slice(i + 1).some(
+        (c) => c.close > zone.high
+      );
+
+      allFvgs.push(zone);
+    }
+  }
+
+  // Detect BOS by closing beyond a previously confirmed swing.
+  let structure = "No confirmed BOS";
   let direction = null;
   let breakIndex = -1;
+  let brokenLevel = null;
 
-  const structureStart = Math.max(10, bars.length - 8);
+  const bosStart = Math.max(5, bars.length - 12);
 
-  for (let i = structureStart; i < bars.length; i++) {
-    const history = bars.slice(Math.max(0, i - 10), i);
+  for (let i = bosStart; i < bars.length; i++) {
+    const priorHighs = swings.filter(
+      (s) => s.type === "high" && s.index < i
+    );
 
-    if (history.length < 5) continue;
+    const priorLows = swings.filter(
+      (s) => s.type === "low" && s.index < i
+    );
 
-    const priorHigh = Math.max(...history.map((c) => c.high));
-    const priorLow = Math.min(...history.map((c) => c.low));
+    const previousHigh = priorHighs[priorHighs.length - 1];
+    const previousLow = priorLows[priorLows.length - 1];
     const candle = bars[i];
 
-    if (candle.close > priorHigh && candle.close > candle.open) {
+    if (
+      previousHigh &&
+      candle.close > previousHigh.price &&
+      isBullish(candle)
+    ) {
       structure = "Bullish BOS";
       direction = "bullish";
       breakIndex = i;
+      brokenLevel = previousHigh.price;
     } else if (
-      candle.close < priorLow &&
-      candle.close < candle.open
+      previousLow &&
+      candle.close < previousLow.price &&
+      isBearish(candle)
     ) {
       structure = "Bearish BOS";
       direction = "bearish";
       breakIndex = i;
+      brokenLevel = previousLow.price;
     }
   }
 
-  // Heuristic Order Block: last opposing candle before BOS.
-  let orderBlock = null;
+  // Find the last opposing candle before a confirmed displacement BOS.
+  const orderBlocks = [];
 
-  if (breakIndex > 0 && direction === "bullish") {
-    for (
-      let i = breakIndex - 1;
-      i >= Math.max(0, breakIndex - 10);
-      i--
-    ) {
-      const candle = bars[i];
+  if (breakIndex > 0 && direction) {
+    const breakCandle = bars[breakIndex];
+    const body = Math.abs(breakCandle.close - breakCandle.open);
+    const displacementOk = body >= averageRange * 0.5;
 
-      if (candle.close < candle.open) {
-        orderBlock = {
-          type: "Bullish OB (heuristic)",
-          low: candle.low,
-          high: candle.open
-        };
+    if (displacementOk) {
+      for (
+        let i = breakIndex - 1;
+        i >= Math.max(0, breakIndex - 8);
+        i--
+      ) {
+        const candle = bars[i];
+
+        const opposing =
+          direction === "bullish"
+            ? isBearish(candle)
+            : isBullish(candle);
+
+        if (!opposing) continue;
+
+        const zone =
+          direction === "bullish"
+            ? {
+                id: `bull-ob-${i}`,
+                type: "Bullish Order Block",
+                direction: "bullish",
+                low: candle.low,
+                high: Math.max(candle.open, candle.close),
+                startTime: candle.time,
+                formedAt: breakCandle.time,
+                index: i
+              }
+            : {
+                id: `bear-ob-${i}`,
+                type: "Bearish Order Block",
+                direction: "bearish",
+                low: Math.min(candle.open, candle.close),
+                high: candle.high,
+                startTime: candle.time,
+                formedAt: breakCandle.time,
+                index: i
+              };
+
+        zone.mitigated = bars
+          .slice(breakIndex + 1)
+          .some((c) => overlaps(zone, c));
+
+        zone.invalidated =
+          direction === "bullish"
+            ? bars.slice(breakIndex + 1).some(
+                (c) => c.close < zone.low
+              )
+            : bars.slice(breakIndex + 1).some(
+                (c) => c.close > zone.high
+              );
+
+        if (!zone.invalidated) {
+          orderBlocks.push(zone);
+        }
+
         break;
       }
     }
   }
 
-  if (breakIndex > 0 && direction === "bearish") {
-    for (
-      let i = breakIndex - 1;
-      i >= Math.max(0, breakIndex - 10);
-      i--
-    ) {
-      const candle = bars[i];
+  // Remove invalidated FVGs. Keep mitigation status for chart styling.
+  const fvgs = allFvgs
+    .filter((z) => !z.invalidated)
+    .slice(-12)
+    .map((z) => ({
+      id: z.id,
+      type: z.type,
+      direction: z.direction,
+      low: round(z.low, decimals),
+      high: round(z.high, decimals),
+      startTime: z.startTime,
+      formedAt: z.formedAt,
+      mitigated: z.mitigated,
+      invalidated: z.invalidated
+    }));
 
-      if (candle.close > candle.open) {
-        orderBlock = {
-          type: "Bearish OB (heuristic)",
-          low: candle.open,
-          high: candle.high
-        };
-        break;
-      }
-    }
-  }
+  const cleanOrderBlocks = orderBlocks.map((z) => ({
+    id: z.id,
+    type: z.type,
+    direction: z.direction,
+    low: round(z.low, decimals),
+    high: round(z.high, decimals),
+    startTime: z.startTime,
+    formedAt: z.formedAt,
+    mitigated: z.mitigated,
+    invalidated: z.invalidated
+  }));
 
   const latestBullGap =
-    [...gaps].reverse().find((z) => z.type === "Bullish FVG") || null;
+    [...fvgs].reverse().find(
+      (z) => z.direction === "bullish" && !z.mitigated
+    ) || null;
 
   const latestBearGap =
-    [...gaps].reverse().find((z) => z.type === "Bearish FVG") || null;
+    [...fvgs].reverse().find(
+      (z) => z.direction === "bearish" && !z.mitigated
+    ) || null;
+
+  const bullishOB =
+    cleanOrderBlocks.find(
+      (z) => z.direction === "bullish" && !z.mitigated
+    ) || null;
+
+  const bearishOB =
+    cleanOrderBlocks.find(
+      (z) => z.direction === "bearish" && !z.mitigated
+    ) || null;
 
   const inside = (zone, price) =>
     Boolean(zone && price >= zone.low && price <= zone.high);
 
   const bullishZone =
     inside(latestBullGap, last.close) ||
-    (orderBlock?.type.startsWith("Bullish") &&
-      inside(orderBlock, last.close));
+    inside(bullishOB, last.close);
 
   const bearishZone =
     inside(latestBearGap, last.close) ||
-    (orderBlock?.type.startsWith("Bearish") &&
-      inside(orderBlock, last.close));
+    inside(bearishOB, last.close);
 
-  // Signal rules.
+  // Conservative setup confirmation; otherwise remain WAIT.
   let signal = "WAIT";
-  let reason =
-    "No aligned setup. Wait for structure, zone and candle confirmation.";
 
-  if (
+  let reason =
+    "No fully aligned setup. Wait for confirmed BOS, valid zone retest and candle confirmation.";
+
+  const bullishReference = latestBullGap || bullishOB;
+  const bearishReference = latestBearGap || bearishOB;
+
+  const bullishConfirm =
     direction === "bullish" &&
     bullishZone &&
-    last.close >= last.open &&
-    previous.close <= previous.open
-  ) {
-    signal = "BUY SETUP";
-    reason =
-      "Bullish BOS, bullish zone and candle confirmation detected.";
-  } else if (
+    bullishReference &&
+    isBullish(last) &&
+    (
+      previous.low <= bullishReference.high ||
+      last.low <= bullishReference.high
+    );
+
+  const bearishConfirm =
     direction === "bearish" &&
     bearishZone &&
-    last.close <= last.open &&
-    previous.close >= previous.open
-  ) {
+    bearishReference &&
+    isBearish(last) &&
+    (
+      previous.high >= bearishReference.low ||
+      last.high >= bearishReference.low
+    );
+
+  if (bullishConfirm) {
+    signal = "BUY SETUP";
+    reason =
+      "Bullish BOS, unmitigated bullish zone and bullish candle confirmation detected.";
+  } else if (bearishConfirm) {
     signal = "SELL SETUP";
     reason =
-      "Bearish BOS, bearish zone and candle confirmation detected.";
+      "Bearish BOS, unmitigated bearish zone and bearish candle confirmation detected.";
   }
 
-  // Entry, stop loss and take profit only for a detected setup.
   let entry = null;
   let stopLoss = null;
   let takeProfit = null;
   let riskReward = null;
 
   if (signal !== "WAIT") {
-    entry = Number(last.close.toFixed(decimals));
+    entry = round(last.close, decimals);
 
-    const candleRisk = last.high - last.low;
-    const risk = Math.max(candleRisk * 1.5, last.close * 0.0008);
+    const candleRisk = Math.max(
+      last.high - last.low,
+      averageRange * 0.5
+    );
+
+    const risk = Math.max(
+      candleRisk * 1.25,
+      last.close * 0.0005
+    );
 
     if (signal === "BUY SETUP") {
-      stopLoss = Number((entry - risk).toFixed(decimals));
-      takeProfit = Number((entry + risk * 2).toFixed(decimals));
+      const zone = bullishReference;
+
+      stopLoss = round(
+        Math.min(entry - risk, zone.low - averageRange * 0.1),
+        decimals
+      );
+
+      takeProfit = round(
+        entry + (entry - stopLoss) * 2,
+        decimals
+      );
     } else {
-      stopLoss = Number((entry + risk).toFixed(decimals));
-      takeProfit = Number((entry - risk * 2).toFixed(decimals));
+      const zone = bearishReference;
+
+      stopLoss = round(
+        Math.max(entry + risk, zone.high + averageRange * 0.1),
+        decimals
+      );
+
+      takeProfit = round(
+        entry - (stopLoss - entry) * 2,
+        decimals
+      );
     }
 
     riskReward = "1:2";
   }
 
-  const relevantFvg =
+  const latestFvg =
     direction === "bullish"
       ? latestBullGap
       : direction === "bearish"
         ? latestBearGap
-        : latestBullGap || latestBearGap;
+        : fvgs[fvgs.length - 1] || null;
+
+  // Include the latest 100 candles for the custom interactive chart.
+  const candles = bars.slice(-100).map((c) => ({
+    time: c.time,
+    open: round(c.open, decimals),
+    high: round(c.high, decimals),
+    low: round(c.low, decimals),
+    close: round(c.close, decimals),
+    volume: Number.isFinite(c.volume) ? c.volume : null
+  }));
 
   return {
     symbol: "XAU/USD",
     timeframe: interval,
-    price: Number(last.close.toFixed(decimals)),
+    price: round(last.close, decimals),
     candleTime: last.time,
     signal,
     reason,
@@ -245,39 +485,51 @@ function analyzeCandles(values, interval) {
     takeProfit,
     riskReward,
     structure,
-    swingHigh: Number(swingHigh.toFixed(decimals)),
-    swingLow: Number(swingLow.toFixed(decimals)),
-    fvg: relevantFvg
+    brokenLevel:
+      brokenLevel == null ? null : round(brokenLevel, decimals),
+    swingHigh: round(swingHigh, decimals),
+    swingLow: round(swingLow, decimals),
+
+    fvg: latestFvg
       ? {
-          type: relevantFvg.type,
-          low: Number(relevantFvg.low.toFixed(decimals)),
-          high: Number(relevantFvg.high.toFixed(decimals))
+          id: latestFvg.id,
+          type: latestFvg.type,
+          direction: latestFvg.direction,
+          low: latestFvg.low,
+          high: latestFvg.high,
+          startTime: latestFvg.startTime,
+          formedAt: latestFvg.formedAt,
+          mitigated: latestFvg.mitigated
         }
       : null,
-    orderBlock: orderBlock
-      ? {
-          type: orderBlock.type,
-          low: Number(orderBlock.low.toFixed(decimals)),
-          high: Number(orderBlock.high.toFixed(decimals))
-        }
-      : null,
+
+    orderBlock: cleanOrderBlocks[0] || null,
+
+    // Arrays are used by the new custom chart to draw zone overlays.
+    fvgs,
+    orderBlocks: cleanOrderBlocks,
+    candles,
+
     note:
-      "Rule-based technical analysis only. Not separate AI confirmation or a guaranteed prediction."
+      "Rule-based technical analysis only. Not separate AI confirmation or a guaranteed prediction. Verify quotes and zones with your broker before trading."
   };
 }
 
 export default async function handler(req, res) {
-  // Always configure CORS before processing the request.
   setCorsHeaders(req, res);
 
-  // Browser CORS preflight.
   if (req.method === "OPTIONS") {
     return res.status(204).end();
   }
 
   if (req.method !== "GET" && req.method !== "POST") {
     res.setHeader("Allow", "GET, POST, OPTIONS");
-    return sendError(res, 405, "Method not allowed. Use GET or POST.");
+
+    return sendError(
+      res,
+      405,
+      "Method not allowed. Use GET or POST."
+    );
   }
 
   const apiKey = process.env.TWELVE_DATA_API_KEY;
@@ -292,8 +544,8 @@ export default async function handler(req, res) {
 
   const params =
     req.method === "POST"
-      ? (req.body || {})
-      : (req.query || {});
+      ? req.body || {}
+      : req.query || {};
 
   const interval = String(params.interval || "5min");
 
@@ -306,7 +558,9 @@ export default async function handler(req, res) {
   }
 
   try {
-    const url = new URL("https://api.twelvedata.com/time_series");
+    const url = new URL(
+      "https://api.twelvedata.com/time_series"
+    );
 
     url.searchParams.set("symbol", "XAU/USD");
     url.searchParams.set("interval", interval);
