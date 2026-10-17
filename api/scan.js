@@ -11,8 +11,31 @@
 
 const ALLOWED_INTERVALS = new Set(["5min", "15min", "1h"]);
 
+const ALLOWED_ORIGINS = new Set([
+  "https://ytkhalifaop-gif.github.io",
+  "https://ak-gold-bot.vercel.app"
+]);
+
+function setCorsHeaders(req, res) {
+  const origin = req.headers.origin;
+
+  if (origin && ALLOWED_ORIGINS.has(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Vary", "Origin");
+  }
+
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Accept, Content-Type");
+}
+
+function sendError(res, status, message) {
+  return res.status(status).json({
+    error: String(message || "Unknown server error")
+  });
+}
+
 function analyzeCandles(values, interval) {
-  // Twelve Data candles are usually newest first.
+  // Twelve Data normally returns candles newest first.
   const bars = values
     .slice()
     .reverse()
@@ -21,7 +44,7 @@ function analyzeCandles(values, interval) {
       open: Number(c.open),
       high: Number(c.high),
       low: Number(c.low),
-      close: Number(c.close),
+      close: Number(c.close)
     }))
     .filter((c) =>
       [c.open, c.high, c.low, c.close].every(Number.isFinite)
@@ -35,7 +58,6 @@ function analyzeCandles(values, interval) {
   const previous = bars[bars.length - 2];
   const decimals = last.close >= 100 ? 2 : 3;
 
-  // Recent swing levels.
   const recent = bars.slice(-21, -1);
   const swingHigh = Math.max(...recent.map((c) => c.high));
   const swingLow = Math.min(...recent.map((c) => c.low));
@@ -52,7 +74,7 @@ function analyzeCandles(values, interval) {
         type: "Bullish FVG",
         low: first.high,
         high: third.low,
-        index: i,
+        index: i
       });
     }
 
@@ -61,12 +83,12 @@ function analyzeCandles(values, interval) {
         type: "Bearish FVG",
         low: third.high,
         high: first.low,
-        index: i,
+        index: i
       });
     }
   }
 
-  // Basic recent Break of Structure (BOS).
+  // Basic recent Break of Structure.
   let structure = "No recent BOS";
   let direction = null;
   let breakIndex = -1;
@@ -75,6 +97,7 @@ function analyzeCandles(values, interval) {
 
   for (let i = structureStart; i < bars.length; i++) {
     const history = bars.slice(Math.max(0, i - 10), i);
+
     if (history.length < 5) continue;
 
     const priorHigh = Math.max(...history.map((c) => c.high));
@@ -95,19 +118,22 @@ function analyzeCandles(values, interval) {
     }
   }
 
-  // Heuristic Order Block:
-  // the last opposing candle before the detected structure break.
+  // Heuristic Order Block: last opposing candle before BOS.
   let orderBlock = null;
 
   if (breakIndex > 0 && direction === "bullish") {
-    for (let i = breakIndex - 1; i >= Math.max(0, breakIndex - 10); i--) {
+    for (
+      let i = breakIndex - 1;
+      i >= Math.max(0, breakIndex - 10);
+      i--
+    ) {
       const candle = bars[i];
 
       if (candle.close < candle.open) {
         orderBlock = {
           type: "Bullish OB (heuristic)",
           low: candle.low,
-          high: candle.open,
+          high: candle.open
         };
         break;
       }
@@ -115,21 +141,24 @@ function analyzeCandles(values, interval) {
   }
 
   if (breakIndex > 0 && direction === "bearish") {
-    for (let i = breakIndex - 1; i >= Math.max(0, breakIndex - 10); i--) {
+    for (
+      let i = breakIndex - 1;
+      i >= Math.max(0, breakIndex - 10);
+      i--
+    ) {
       const candle = bars[i];
 
       if (candle.close > candle.open) {
         orderBlock = {
           type: "Bearish OB (heuristic)",
           low: candle.open,
-          high: candle.high,
+          high: candle.high
         };
         break;
       }
     }
   }
 
-  // Latest FVG for each direction.
   const latestBullGap =
     [...gaps].reverse().find((z) => z.type === "Bullish FVG") || null;
 
@@ -149,7 +178,7 @@ function analyzeCandles(values, interval) {
     (orderBlock?.type.startsWith("Bearish") &&
       inside(orderBlock, last.close));
 
-  // Signal rules: structure, relevant zone and candle confirmation.
+  // Signal rules.
   let signal = "WAIT";
   let reason =
     "No aligned setup. Wait for structure, zone and candle confirmation.";
@@ -174,7 +203,7 @@ function analyzeCandles(values, interval) {
       "Bearish BOS, bearish zone and candle confirmation detected.";
   }
 
-  // Entry, SL and TP only when a setup condition is met.
+  // Entry, stop loss and take profit only for a detected setup.
   let entry = null;
   let stopLoss = null;
   let takeProfit = null;
@@ -197,7 +226,6 @@ function analyzeCandles(values, interval) {
     riskReward = "1:2";
   }
 
-  // Report the FVG relevant to the detected direction.
   const relevantFvg =
     direction === "bullish"
       ? latestBullGap
@@ -223,45 +251,58 @@ function analyzeCandles(values, interval) {
       ? {
           type: relevantFvg.type,
           low: Number(relevantFvg.low.toFixed(decimals)),
-          high: Number(relevantFvg.high.toFixed(decimals)),
+          high: Number(relevantFvg.high.toFixed(decimals))
         }
       : null,
     orderBlock: orderBlock
       ? {
           type: orderBlock.type,
           low: Number(orderBlock.low.toFixed(decimals)),
-          high: Number(orderBlock.high.toFixed(decimals)),
+          high: Number(orderBlock.high.toFixed(decimals))
         }
       : null,
     note:
-      "Rule-based technical analysis only. This is not a separate AI confirmation or a guaranteed prediction.",
+      "Rule-based technical analysis only. Not separate AI confirmation or a guaranteed prediction."
   };
 }
 
 export default async function handler(req, res) {
+  // Always configure CORS before processing the request.
+  setCorsHeaders(req, res);
+
+  // Browser CORS preflight.
+  if (req.method === "OPTIONS") {
+    return res.status(204).end();
+  }
+
   if (req.method !== "GET" && req.method !== "POST") {
-    res.setHeader("Allow", "GET, POST");
-    return res
-      .status(405)
-      .json({ error: "Method not allowed. Use GET or POST." });
+    res.setHeader("Allow", "GET, POST, OPTIONS");
+    return sendError(res, 405, "Method not allowed. Use GET or POST.");
   }
 
   const apiKey = process.env.TWELVE_DATA_API_KEY;
 
   if (!apiKey) {
-    return res.status(500).json({
-      error:
-        "TWELVE_DATA_API_KEY is missing. Add it in Vercel Environment Variables and redeploy.",
-    });
+    return sendError(
+      res,
+      500,
+      "TWELVE_DATA_API_KEY missing. Add it in Vercel Environment Variables and redeploy."
+    );
   }
 
-  const params = req.method === "POST" ? req.body || {} : req.query || {};
+  const params =
+    req.method === "POST"
+      ? (req.body || {})
+      : (req.query || {});
+
   const interval = String(params.interval || "5min");
 
   if (!ALLOWED_INTERVALS.has(interval)) {
-    return res.status(400).json({
-      error: "Invalid interval. Use 5min, 15min, or 1h.",
-    });
+    return sendError(
+      res,
+      400,
+      "Invalid interval. Use 5min, 15min, or 1h."
+    );
   }
 
   try {
@@ -273,27 +314,44 @@ export default async function handler(req, res) {
     url.searchParams.set("apikey", apiKey);
 
     const upstream = await fetch(url.toString());
-    const data = await upstream.json();
+
+    let data;
+
+    try {
+      data = await upstream.json();
+    } catch {
+      return sendError(
+        res,
+        502,
+        "Market data provider returned an invalid response."
+      );
+    }
 
     if (
       !upstream.ok ||
       data.status === "error" ||
       !Array.isArray(data.values)
     ) {
-      return res.status(502).json({
-        error:
-          data.message ||
-          "Market data unavailable. Check your Twelve Data API key, quota and XAU/USD symbol access.",
-      });
+      return sendError(
+        res,
+        502,
+        data.message ||
+          "Market data unavailable. Check the Twelve Data API key, quota and XAU/USD access."
+      );
     }
 
     const result = analyzeCandles(data.values, interval);
 
-    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("Cache-Control", "no-store, max-age=0");
+
     return res.status(200).json(result);
   } catch (error) {
-    return res.status(500).json({
-      error: error.message || "Market analysis failed.",
-    });
+    console.error("ASMC scan error:", error);
+
+    return sendError(
+      res,
+      500,
+      error.message || "Market analysis failed."
+    );
   }
 }
