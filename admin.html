@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="ur">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>👑 Admin Master Panel - AK Gold Scalper</title>
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+    <style>
+        body { background: #0b0e14; color: #fff; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 15px; margin: 0; }
+        .card { background: #181a20; border: 1px solid #f0b90b; border-radius: 12px; padding: 20px; max-width: 500px; margin: 30px auto; box-shadow: 0 0 15px rgba(240, 185, 11, 0.15); }
+        h2 { color: #f0b90b; text-align: center; margin-top: 0; }
+        label { font-size: 13px; color: #aaa; margin-top: 10px; display: block; }
+        input, select, button { width: 100%; padding: 12px; margin: 8px 0; border-radius: 6px; border: 1px solid #2b313a; background: #0b0e14; color: #fff; box-sizing: border-box; font-size: 15px; }
+        button { background: #f0b90b; color: #000; font-weight: bold; border: none; cursor: pointer; transition: 0.2s; }
+        button:hover { background: #d8a40a; }
+        .key-box { background: #222730; padding: 15px; border-radius: 8px; border-left: 4px solid #0ecb81; margin-top: 15px; word-break: break-all; }
+        .table-container { margin-top: 20px; overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 10px; }
+        th, td { border: 1px solid #2b313a; padding: 8px; text-align: center; }
+        th { background: #222730; color: #f0b90b; }
+        .btn-reset { background: #f6465d; color: #fff; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 11px; }
+        .btn-reset:hover { background: #d9384c; }
+    </style>
+</head>
+<body>
+
+<div class="card" id="loginCard">
+    <h2>🔒 Owner Login</h2>
+    <label>Enter Admin Secret Password:</label>
+    <input type="password" id="adminPass" placeholder="e.g. ADMIN@GOLD2026">
+    <button onclick="checkAdmin()">Unlock Panel</button>
+    <div id="authError" style="color:#f6465d; text-align:center; font-size:13px; margin-top:8px;"></div>
+</div>
+
+<div class="card" id="adminPanel" style="display:none; max-width: 800px;">
+    <h2>👑 VIP Key Generator</h2>
+    
+    <label>Client Name / Info:</label>
+    <input type="text" id="clientName" placeholder="e.g. Client Ali">
+
+    <label>Select Key Expiry Duration:</label>
+    <select id="keyDuration">
+        <option value="7">1 Week Access (7 Days)</option>
+        <option value="30">1 Month Access (30 Days)</option>
+        <option value="90">3 Months VIP (90 Days)</option>
+        <option value="365">1 Year VIP (365 Days)</option>
+    </select>
+
+    <button onclick="generateAndSaveKey()">⚡ Generate & Save to Firebase</button>
+
+    <div id="resultBox" class="key-box" style="display:none;">
+        <span style="color:#aaa; font-size:12px;">Generated VIP License Key:</span>
+        <h3 id="displayKey" style="color:#f0b90b; margin:5px 0;"></h3>
+        <span id="displayExp" style="font-size:12px; color:#0ecb81;"></span><br><br>
+        <button onclick="copyToClipboard()" style="background:#0ecb81; color:#fff; width:auto; padding:8px 15px;">📋 Copy Key</button>
+    </div>
+
+    <hr style="border-color:#2b313a; margin: 25px 0;">
+
+    <h3>📜 Generated License Keys</h3>
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Client</th>
+                    <th>Key</th>
+                    <th>Days</th>
+                    <th>Expiry</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody id="keysTableBody">
+                <tr><td colspan="6">Loading data from Firebase...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyCJ33U01UrTa47tpBAJrzLCKk8ql6CqsKQ",
+  authDomain: "ak-forex-primiume-bot.firebaseapp.com",
+  projectId: "ak-forex-primiume-bot",
+  storageBucket: "ak-forex-primiume-bot.firebasestorage.app",
+  messagingSenderId: "675749225879",
+  appId: "1:675749225879:web:395fe302e73e818f9310d2",
+  measurementId: "G-LYCR7NEWS7"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+const MASTER_PASSWORD = "ADMIN@GOLD2026";
+
+function checkAdmin() {
+    const inputPass = document.getElementById('adminPass').value;
+    if (inputPass === MASTER_PASSWORD) {
+        document.getElementById('loginCard').style.display = 'none';
+        document.getElementById('adminPanel').style.display = 'block';
+        loadKeysFromCloud();
+    } else {
+        document.getElementById('authError').innerText = "❌ Incorrect Password!";
+    }
+}
+
+async function generateAndSaveKey() {
+    const name = document.getElementById('clientName').value.trim() || 'Anonymous';
+    const days = parseInt(document.getElementById('keyDuration').value);
+    const randomHex = Math.random().toString(36).substring(2, 7).toUpperCase();
+    const generatedKey = `GOLD-${days}D-${randomHex}`;
+
+    let now = new Date();
+    let expiryDate = new Date();
+    expiryDate.setDate(now.getDate() + days);
+
+    const keyData = {
+        key: generatedKey,
+        client: name,
+        durationDays: days,
+        createdAt: now.toISOString(),
+        expiresAt: expiryDate.toISOString(),
+        boundDevice: null,
+        isActive: true
+    };
+
+    try {
+        await db.collection("licenses").doc(generatedKey).set(keyData);
+        document.getElementById('displayKey').innerText = generatedKey;
+        document.getElementById('displayExp').innerText = `Valid until: ${expiryDate.toDateString()}`;
+        document.getElementById('resultBox').style.display = 'block';
+        loadKeysFromCloud();
+    } catch (error) {
+        alert("Firebase Save Error: " + error.message);
+    }
+}
+
+function loadKeysFromCloud() {
+    db.collection("licenses").get().then((querySnapshot) => {
+        let html = "";
+        querySnapshot.forEach((doc) => {
+            let data = doc.data();
+            let isExpired = new Date() > new Date(data.expiresAt);
+            let status = isExpired ? '<span style="color:#f6465d">Expired</span>' : '<span style="color:#0ecb81">Active</span>';
+            
+            html += `<tr>
+                <td>${data.client}</td>
+                <td><b>${data.key}</b></td>
+                <td>${data.durationDays}D</td>
+                <td>${new Date(data.expiresAt).toLocaleDateString()}</td>
+                <td>${status}</td>
+                <td><button class="btn-reset" onclick="resetDeviceLock('${data.key}')">🔄 Reset Device</button></td>
+            </tr>`;
+        });
+        document.getElementById('keysTableBody').innerHTML = html || '<tr><td colspan="6">No keys created yet.</td></tr>';
+    });
+}
+
+// 🔄 Bound Device clear karne ka function
+async function resetDeviceLock(key) {
+    if(confirm(`Kya aap Key: ${key} se Device Lock hatana chahte hain?`)) {
+        try {
+            await db.collection("licenses").doc(key).update({
+                boundDevice: null
+            });
+            alert("✅ Device Lock successfully cleared! Ab kisi bhi phone se login ho jayega.");
+            loadKeysFromCloud();
+        } catch(e) {
+            alert("Error: " + e.message);
+        }
+    }
+}
+
+function copyToClipboard() {
+    const key = document.getElementById('displayKey').innerText;
+    navigator.clipboard.writeText(key);
+    alert("Key copied!");
+}
+</script>
+
+</body>
+</html>
