@@ -8,7 +8,7 @@
 
 <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
-<script src="https://s3.tradingview.com/tv.js"></script>
+<script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 
 <style>
 *{box-sizing:border-box}
@@ -26,7 +26,17 @@ button:disabled{opacity:.55;cursor:wait}
 .timer-badge{background:#222730;padding:7px 12px;border-radius:20px;font-size:12px;color:#0ecb81;border:1px solid #0ecb81}
 .main-grid{display:grid;grid-template-columns:minmax(0,3fr) minmax(300px,1fr);gap:15px;margin-top:15px}
 .chart-box,.signal-box{background:#181a20;border-radius:10px;padding:12px;min-width:0}
-.chart-box{height:570px}
+.chart-box{height:570px;display:flex;flex-direction:column}
+.chart-heading{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.chart-heading h3{color:#f0b90b;font-size:15px;margin:0}
+.chart-legend{font-size:11px;color:#bbb;display:flex;gap:12px;flex-wrap:wrap}
+.legend-item{display:flex;align-items:center;gap:5px}
+.legend-dot{width:9px;height:9px;border-radius:2px;display:inline-block}
+#asmcChart{position:relative;flex:1;min-height:0;width:100%;overflow:hidden;border-radius:6px;background:#0b0e14}
+#chartMessage{position:absolute;left:10px;top:10px;z-index:5;background:#181a20dd;padding:7px 9px;border-radius:5px;color:#aaa;font-size:11px;pointer-events:none}
+.zone-overlay{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:3}
+.zone-box{position:absolute;border:1px solid;min-width:2px}
+.zone-label{position:absolute;left:3px;top:2px;font-size:10px;font-weight:bold;white-space:nowrap;text-shadow:0 1px 2px #000}
 .signal-box{display:flex;flex-direction:column;gap:14px}
 .section-title{color:#f0b90b;margin:0}
 .controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
@@ -43,7 +53,13 @@ button:disabled{opacity:.55;cursor:wait}
 .notice{background:#2b2412;border:1px solid #8a6b16;color:#f5d879;padding:10px;border-radius:7px;font-size:12px;line-height:1.6}
 @media(max-width:900px){
  .main-grid{grid-template-columns:1fr}
- .chart-box{height:420px}
+ .chart-box{height:440px}
+}
+@media(max-width:480px){
+ .dashboard-container{padding:8px}
+ .chart-box{height:380px;padding:8px}
+ .signal-box{padding:10px}
+ .value{font-size:22px}
 }
 </style>
 </head>
@@ -77,7 +93,17 @@ button:disabled{opacity:.55;cursor:wait}
 
   <div class="main-grid">
     <div class="chart-box">
-      <div id="tradingview_xauusd_chart" style="height:100%;width:100%"></div>
+      <div class="chart-heading">
+        <h3>🕯 XAUUSD · SMC CHART</h3>
+        <div class="chart-legend">
+          <span class="legend-item"><i class="legend-dot" style="background:#0ecb81"></i>Bullish FVG</span>
+          <span class="legend-item"><i class="legend-dot" style="background:#f6465d"></i>Bearish FVG</span>
+          <span class="legend-item"><i class="legend-dot" style="background:#3b82f6"></i>Order Block</span>
+        </div>
+      </div>
+      <div id="asmcChart">
+        <div id="chartMessage">Unlock dashboard, then press Scan Market.</div>
+      </div>
     </div>
 
     <div class="signal-box">
@@ -125,14 +151,11 @@ button:disabled{opacity:.55;cursor:wait}
           Status:
           <b id="aiStatus" style="color:#f5d879">READY TO SCAN</b>
         </p>
-        <div id="analysisSummary" class="zone-list">
-Select a timeframe and press Scan Market.
-        </div>
+        <div id="analysisSummary" class="zone-list">Select a timeframe and press Scan Market.</div>
       </div>
 
       <div class="notice">
-        ⚠️ Analysis is rule-based, not a guaranteed prediction or separate AI confirmation.
-        Always verify the quote with your Exness broker before trading.
+        ⚠️ Rule-based technical analysis only; this is not guaranteed to predict market direction or an independent AI confirmation. Verify the quote with your Exness broker before trading.
       </div>
     </div>
   </div>
@@ -242,19 +265,8 @@ async function verifyAndLogin() {
       document.getElementById("expiryTimer").innerText =
         `⏳ License: ${diffDays} Days Left`;
 
-      if (typeof TradingView !== "undefined") {
-        new TradingView.widget({
-          autosize: true,
-          symbol: "FX_IDC:XAUUSD",
-          interval: "5",
-          timezone: "Etc/UTC",
-          theme: "dark",
-          style: "1",
-          locale: "en",
-          container_id: "tradingview_xauusd_chart"
-        });
-      }
-
+      /* Dashboard chart starts after successful license validation */
+      startASMCChart();
       setFeedStatus();
     }, 1000);
 
@@ -265,10 +277,15 @@ async function verifyAndLogin() {
   }
 }
 
-/* SCANNER - USE VERCEL API */
+/* API CONFIG */
 const SCAN_API_BASE = "https://ak-gold-bot.vercel.app";
 let scanBusy = false;
 let lastAnalysis = null;
+let asmcChart = null;
+let candleSeries = null;
+let zoneOverlay = null;
+let refreshTimer = null;
+let chartReady = false;
 
 function setFeedStatus() {
   document.getElementById("aiStatus").innerText = "READY · SERVER API";
@@ -282,7 +299,6 @@ function formatPrice(value) {
       !Number.isFinite(Number(value))) {
     return "—";
   }
-
   return Number(value).toFixed(2);
 }
 
@@ -290,7 +306,6 @@ function formatZone(zone) {
   if (!zone || zone.low == null || zone.high == null) {
     return "No zone identified";
   }
-
   return `${zone.type || "Zone"}: ${formatPrice(zone.low)} – ${formatPrice(zone.high)}`;
 }
 
@@ -307,11 +322,256 @@ function setSignalState(signal, description) {
 
   signalEl.style.color = color;
   card.style.borderLeftColor = color;
-
   document.getElementById("setupType").innerText =
     description || "No confirmed setup. Wait for clearer conditions.";
 }
 
+/* CHART SETUP */
+function startASMCChart() {
+  const container = document.getElementById("asmcChart");
+  if (!container || typeof LightweightCharts === "undefined") {
+    document.getElementById("chartMessage").innerText =
+      "Chart library unavailable. Check your internet connection.";
+    return;
+  }
+
+  if (asmcChart) {
+    asmcChart.remove();
+    asmcChart = null;
+    candleSeries = null;
+  }
+
+  container.innerHTML = '<div id="chartMessage">Loading market candles...</div>';
+
+  zoneOverlay = document.createElement("div");
+  zoneOverlay.className = "zone-overlay";
+  container.appendChild(zoneOverlay);
+
+  asmcChart = LightweightCharts.createChart(container, {
+    width: container.clientWidth,
+    height: container.clientHeight,
+    layout: {
+      background: { type: "solid", color: "#0b0e14" },
+      textColor: "#d1d4dc",
+      fontSize: 11
+    },
+    grid: {
+      vertLines: { color: "#1d232d" },
+      horzLines: { color: "#1d232d" }
+    },
+    rightPriceScale: {
+      borderColor: "#343a46",
+      scaleMargins: { top: 0.08, bottom: 0.08 }
+    },
+    timeScale: {
+      borderColor: "#343a46",
+      timeVisible: true,
+      secondsVisible: false,
+      rightOffset: 5
+    },
+    crosshair: {
+      mode: LightweightCharts.CrosshairMode.Normal
+    },
+    localization: {
+      priceFormatter: price => Number(price).toFixed(2)
+    },
+    handleScroll: true,
+    handleScale: true
+  });
+
+  candleSeries = asmcChart.addCandlestickSeries({
+    upColor: "#0ecb81",
+    downColor: "#f6465d",
+    borderUpColor: "#0ecb81",
+    borderDownColor: "#f6465d",
+    wickUpColor: "#0ecb81",
+    wickDownColor: "#f6465d",
+    priceLineVisible: true,
+    lastValueVisible: true
+  });
+
+  asmcChart.timeScale().subscribeVisibleLogicalRangeChange(() => drawZones());
+  asmcChart.subscribeCrosshairMove(() => drawZones());
+
+  if (window.ResizeObserver) {
+    const resizeObserver = new ResizeObserver(() => {
+      if (!asmcChart) return;
+      asmcChart.applyOptions({
+        width: container.clientWidth,
+        height: container.clientHeight
+      });
+      drawZones();
+    });
+    resizeObserver.observe(container);
+  } else {
+    window.addEventListener("resize", () => {
+      if (!asmcChart) return;
+      asmcChart.applyOptions({
+        width: container.clientWidth,
+        height: container.clientHeight
+      });
+      drawZones();
+    });
+  }
+
+  chartReady = true;
+
+  /* Initial scan, followed by periodic refresh */
+  scanMarket();
+
+  if (refreshTimer) clearInterval(refreshTimer);
+  refreshTimer = setInterval(() => {
+    if (document.getElementById("dashboardScreen").style.display !== "none") {
+      scanMarket();
+    }
+  }, 60000);
+}
+
+/* Normalize API candle format */
+function normalizeCandles(candles) {
+  if (!Array.isArray(candles)) return [];
+
+  return candles.map(c => {
+    let time = c.time;
+
+    if (typeof time === "string") {
+      const parsed = Date.parse(time);
+      time = Math.floor(parsed / 1000);
+    }
+
+    time = Number(time);
+
+    return {
+      time: Math.floor(time),
+      open: Number(c.open),
+      high: Number(c.high),
+      low: Number(c.low),
+      close: Number(c.close)
+    };
+  }).filter(c =>
+    Number.isFinite(c.time) &&
+    Number.isFinite(c.open) &&
+    Number.isFinite(c.high) &&
+    Number.isFinite(c.low) &&
+    Number.isFinite(c.close)
+  ).sort((a, b) => a.time - b.time)
+   .filter((c, i, arr) => i === 0 || c.time !== arr[i - 1].time);
+}
+
+/* Normalize zone shapes from the API */
+function normalizeZones(data) {
+  const zones = [];
+
+  if (Array.isArray(data.zones)) {
+    data.zones.forEach(z => {
+      const low = Number(z.low);
+      const high = Number(z.high);
+
+      if (Number.isFinite(low) && Number.isFinite(high)) {
+        zones.push({
+          type: String(z.type || z.name || "FVG").toUpperCase(),
+          low: Math.min(low, high),
+          high: Math.max(low, high),
+          from: Number(z.from),
+          to: Number(z.to),
+          direction: String(z.direction || z.bias || "").toUpperCase()
+        });
+      }
+    });
+  }
+
+  if (data.fvg && data.fvg.low != null && data.fvg.high != null) {
+    zones.push({
+      type: "FVG",
+      low: Math.min(Number(data.fvg.low), Number(data.fvg.high)),
+      high: Math.max(Number(data.fvg.low), Number(data.fvg.high)),
+      from: Number(data.fvg.from),
+      to: Number(data.fvg.to),
+      direction: String(data.fvg.direction || data.fvg.bias || data.fvg.type || "").toUpperCase()
+    });
+  }
+
+  if (data.orderBlock &&
+      data.orderBlock.low != null &&
+      data.orderBlock.high != null) {
+    zones.push({
+      type: "ORDER BLOCK",
+      low: Math.min(Number(data.orderBlock.low), Number(data.orderBlock.high)),
+      high: Math.max(Number(data.orderBlock.low), Number(data.orderBlock.high)),
+      from: Number(data.orderBlock.from),
+      to: Number(data.orderBlock.to),
+      direction: String(data.orderBlock.direction || data.orderBlock.bias || data.orderBlock.type || "").toUpperCase()
+    });
+  }
+
+  const seen = new Set();
+  return zones.filter(z => {
+    if (!Number.isFinite(z.low) || !Number.isFinite(z.high)) return false;
+    const key = `${z.type}:${z.low}:${z.high}:${z.direction}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+/* Draw price/time-aligned FVG and OB rectangles */
+function drawZones() {
+  if (!asmcChart || !candleSeries || !zoneOverlay || !lastAnalysis) return;
+
+  zoneOverlay.innerHTML = "";
+
+  const candles = normalizeCandles(lastAnalysis.candles || []);
+  if (!candles.length) return;
+
+  const timeScale = asmcChart.timeScale();
+  const firstTime = candles[0].time;
+  const lastTime = candles[candles.length - 1].time;
+  const zones = normalizeZones(lastAnalysis);
+
+  zones.forEach(zone => {
+    let leftTime = Number.isFinite(zone.from) && zone.from > 0
+      ? zone.from : firstTime;
+
+    let rightTime = Number.isFinite(zone.to) && zone.to > 0
+      ? zone.to : lastTime;
+
+    leftTime = Math.max(firstTime, Math.min(lastTime, leftTime));
+    rightTime = Math.max(firstTime, Math.min(lastTime, rightTime));
+
+    const x1 = timeScale.timeToCoordinate(leftTime);
+    const x2 = timeScale.timeToCoordinate(rightTime);
+    const y1 = candleSeries.priceToCoordinate(zone.high);
+    const y2 = candleSeries.priceToCoordinate(zone.low);
+
+    if (x1 == null || x2 == null || y1 == null || y2 == null) return;
+
+    const isOB = zone.type.includes("ORDER") || zone.type.includes("OB");
+    const isBear = zone.direction.includes("BEAR") ||
+      zone.direction.includes("SELL") ||
+      zone.direction.includes("DOWN");
+
+    const color = isOB ? "#3b82f6" : (isBear ? "#f6465d" : "#0ecb81");
+
+    const box = document.createElement("div");
+    box.className = "zone-box";
+    box.style.left = Math.min(x1, x2) + "px";
+    box.style.top = Math.min(y1, y2) + "px";
+    box.style.width = Math.max(2, Math.abs(x2 - x1)) + "px";
+    box.style.height = Math.max(3, Math.abs(y2 - y1)) + "px";
+    box.style.borderColor = color;
+    box.style.background = color + "22";
+
+    const label = document.createElement("span");
+    label.className = "zone-label";
+    label.style.color = color;
+    label.textContent = zone.type;
+    box.appendChild(label);
+
+    zoneOverlay.appendChild(box);
+  });
+}
+
+/* API SCANNER */
 async function scanMarket() {
   if (scanBusy) return;
 
@@ -378,6 +638,26 @@ async function scanMarket() {
 
     setSignalState(data.signal, data.reason);
 
+    /* Update candlestick chart */
+    const candles = normalizeCandles(data.candles || []);
+
+    if (candles.length && candleSeries) {
+      candleSeries.setData(candles);
+      document.getElementById("chartMessage").style.display = "none";
+
+      if (!chartReady || !lastAnalysis) {
+        asmcChart.timeScale().fitContent();
+      } else {
+        asmcChart.timeScale().fitContent();
+      }
+
+      drawZones();
+    } else {
+      document.getElementById("chartMessage").style.display = "block";
+      document.getElementById("chartMessage").innerText =
+        "API response mein candle data nahi mila.";
+    }
+
     const details = [
       `Symbol: ${data.symbol || "XAU/USD"}`,
       `Timeframe: ${data.timeframe || interval}`,
@@ -387,7 +667,9 @@ async function scanMarket() {
       `Fair Value Gap: ${formatZone(data.fvg)}`,
       `Order Block: ${formatZone(data.orderBlock)}`,
       "",
-      `Analysis: ${data.note || "Rule-based technical analysis only."}`
+      `Analysis: ${data.note || "Rule-based technical analysis only."}`,
+      "",
+      `Chart candles received: ${candles.length}`
     ];
 
     summary.innerText = details.join("\n");
@@ -404,7 +686,7 @@ async function scanMarket() {
 
     if (error instanceof TypeError && /fetch/i.test(message)) {
       message =
-        "Vercel API se connection fail hua. API CORS settings aur deployment check karein.";
+        "Vercel API connection fail hua. API deployment aur CORS settings check karein.";
     }
 
     summary.innerText = message;
@@ -413,6 +695,10 @@ async function scanMarket() {
       "NO SIGNAL",
       "Scan complete nahi hua. Error fix hone tak trade signal use na karein."
     );
+
+    document.getElementById("chartMessage").style.display = "block";
+    document.getElementById("chartMessage").innerText =
+      "Unable to load candles. Check API response.";
 
     document.getElementById("livePriceDisplay").innerText = "Unavailable";
     document.getElementById("entryPrice").innerText = "—";
@@ -427,6 +713,14 @@ async function scanMarket() {
     btn.innerText = "🔎 Scan Market";
   }
 }
+
+/* Redraw zones when timeframe changes; scan new timeframe */
+document.getElementById("timeframe").addEventListener("change", () => {
+  if (document.getElementById("dashboardScreen").style.display !== "none" &&
+      document.getElementById("dashboardScreen").style.display !== "") {
+    scanMarket();
+  }
+});
 </script>
 
 </body>
